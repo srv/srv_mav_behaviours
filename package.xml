@@ -1,0 +1,21 @@
+<package>
+  <name>srv_mav_behaviours</name>
+  <version>0.1.0</version>
+  <description>Nodes implementing MAV behaviours</description>
+
+  <maintainer email="xisco.bonnin@uib.es">Francisco Bonnin-Pascual</maintainer>
+
+  <license>GPLv3</license>
+  <url type="website">http://wiki.ros.org/srv_mav_control</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+
+</package>
