@@ -67,6 +67,7 @@ class SafetyManager {
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods
+  void attenuateXYProximity(double & x_vel, double & y_vel);
   void computeXYRepulsion(double & vx_rep, double & vy_rep);
 
 };

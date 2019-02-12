@@ -87,18 +87,35 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   if(!(desired_vel_received && laser_scan_received)) return;
 
-  double final_vx, final_vy, final_vz, final_vyaw;
+  // get the desired command
 
-  final_vx = user_desired_vel.linear.x;
-  final_vy = user_desired_vel.linear.y;
-  final_vz = user_desired_vel.linear.z;
-  final_vyaw = user_desired_vel.angular.z;
+  double desired_vx, desired_vy, desired_vz, desired_vyaw;
+
+  desired_vx = user_desired_vel.linear.x;
+  desired_vy = user_desired_vel.linear.y;
+  desired_vz = user_desired_vel.linear.z;
+  desired_vyaw = user_desired_vel.angular.z;
+
+  //TODO: if user_desired_vel is 0 and the positionCtrl_vel is not 0, then use the last as desired velocity
+
+  // attenuate the desired command with the proximity of obstacles
+
+  attenuateXYProximity(desired_vx, desired_vy);
+
+  // compute the repulsions from the surrounding obstacles
 
   double vx_rep, vy_rep;
   computeXYRepulsion(vx_rep, vy_rep);
 
-  final_vx = final_vx - vx_rep;
-  final_vy = final_vy - vy_rep;
+  // compute final velocity command
+
+  double final_vx, final_vy, final_vz, final_vyaw;
+  final_vx = desired_vx - vx_rep;
+  final_vy = desired_vy - vy_rep;
+  final_vz = desired_vz;
+  final_vyaw = desired_vyaw;
+
+  // publish final velocity command
 
   geometry_msgs::TwistPtr final_twist(new geometry_msgs::Twist);
   final_twist->linear.x = final_vx;
@@ -107,6 +124,16 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   final_twist->angular.z = final_vyaw;
 
   twist_pub_.publish(final_twist);
+
+}
+
+void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
+
+  double angle = atan2(y_vel, x_vel);
+
+  int index = round(angle - laser_scan.angle_min) / laser_scan.angle_increment;
+
+  // float initial_index = 
 
 }
 
