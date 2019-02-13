@@ -47,7 +47,9 @@ class SafetyManager {
 
   // Params
   double min_distance_wall, max_height;
-  double K_proximity_attenuation, K_wall_repulsion;
+  double attenuation_distance_wall;
+  double scan_degrees_for_attenuation;
+  double K_wall_repulsion;
   double max_speed_xy, max_speed_z;
 
   // Global variables
@@ -55,13 +57,14 @@ class SafetyManager {
   bool desired_vel_received;
   sensor_msgs::LaserScan laser_scan;
   bool laser_scan_received;
-
-  // Private methods
+  int laser_num_ranges;
+  float laser_angle_incr;
+  float laser_angle_min;
+  int half_scans_attenuation;
 
   // Services
 
   // Callbacks
-
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg);
   void timerClb(const ros::TimerEvent& event);

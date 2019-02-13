@@ -37,19 +37,22 @@ void SafetyManager::configure(){
   nh_.param("frequency", frequency, 50.0);
   ROS_INFO("Frequency: %2.2f", frequency);
 
-  nh_.param("max_speed_xy", max_speed_xy, 0.6);
+  nh_.param("max_speed_xy", max_speed_xy, 1.0);
   ROS_INFO("Max_speed_xy: %2.2f", max_speed_xy);
 
-  nh_.param("max_speed_z", max_speed_z, 0.3);
+  nh_.param("max_speed_z", max_speed_z, 0.7);
   ROS_INFO("Max_speed_z: %2.2f", max_speed_z);
 
-  nh_.param("min_distance_wall", min_distance_wall, 1.2);
+  nh_.param("min_distance_wall", min_distance_wall, 1.2); // minimum distance allowed from walls
   ROS_INFO("Min_distance_wall: %2.2f", min_distance_wall);
 
-  nh_.param("K_proximity_attenuation", K_proximity_attenuation, 2.0); // attenuation factor at 1m from the frontier, with regards to the max_speed
-  ROS_INFO("K_proximity_attenuation: %2.2f", K_proximity_attenuation);
+  nh_.param("attenuation_distance_wall", attenuation_distance_wall, 2.0); // distance from the wall in meters to start attenuating the speed
+  ROS_INFO("Attenuation_distance_wall: %2.2f", attenuation_distance_wall);
 
-  nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0);
+  nh_.param("scan_degrees_for_attenuation", scan_degrees_for_attenuation, 40.0); // angular sector of the laser scan considered when computing the attenuation (in degrees)
+  ROS_INFO("scan_degrees_for_attenuation: %2.2f", scan_degrees_for_attenuation);
+
+  nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed for repulsion after penetrating 1m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
 
   desired_vel_received = false;
@@ -79,6 +82,14 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg){
 
   laser_scan = *laser_scan_msg;
+
+  if(!laser_scan_received){
+    laser_num_ranges = laser_scan.ranges.size();
+    laser_angle_incr = laser_scan.angle_increment;
+    laser_angle_min = laser_scan.angle_min;
+    half_scans_attenuation = round((scan_degrees_for_attenuation / laser_angle_incr) / 2.0);
+  }
+
   laser_scan_received = true;
 
 }
@@ -110,8 +121,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // compute final velocity command
 
   double final_vx, final_vy, final_vz, final_vyaw;
-  final_vx = desired_vx - vx_rep;
-  final_vy = desired_vy - vy_rep;
+  final_vx = desired_vx + vx_rep;
+  final_vy = desired_vy + vy_rep;
   final_vz = desired_vz;
   final_vyaw = desired_vyaw;
 
@@ -131,21 +142,40 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
 
   double angle = atan2(y_vel, x_vel);
 
-  int index = round(angle - laser_scan.angle_min) / laser_scan.angle_increment;
+  int index = round((angle - laser_angle_min) / laser_angle_incr);
 
-  // float initial_index = 
+  int initial_index = std::max(0, index - half_scans_attenuation);
+  int final_index = std::min(laser_num_ranges-1, index + half_scans_attenuation);
+
+  float min_range = laser_scan.ranges[initial_index];
+
+  for (int i = initial_index + 1; i <= final_index; i++){
+
+    if (laser_scan.ranges[i] < min_range){
+
+      min_range = laser_scan.ranges[i];
+
+    }
+
+  }
+
+  double attenuation = std::min(1.0, std::max(0.0, min_range - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
+
+  //attenuation is in [0.0, 1.0]
+
+  x_vel = x_vel * attenuation;
+  y_vel = y_vel * attenuation;
 
 }
 
 void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
   vx_rep = vy_rep = 0.0;
-  
-  int num_ranges = laser_scan.ranges.size();
-  float angle_incr = laser_scan.angle_increment;
+  int num_rep = 0;
+
   float angle = laser_scan.angle_min;
 
-  for(int i = 0; i < num_ranges; i++){
+  for(int i = 0; i < laser_num_ranges; i++){
 
     float range = laser_scan.ranges[i];
 
@@ -153,16 +183,26 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
       if(range < min_distance_wall){
 
-        double repulsion = K_wall_repulsion * max_speed_xy * (min_distance_wall-range);
+        double repulsion = std::min(max_speed_xy, K_wall_repulsion * (min_distance_wall-range));
+
+        // repulsion is in [0.0, max_speed_xy]
 
         vx_rep += repulsion * cos(angle + M_PI);
         vy_rep += repulsion * sin(angle + M_PI);
+        num_rep ++;
 
       }
 
     }
 
-    angle += angle_incr;
+    angle += laser_angle_incr;
+
+  }
+
+  if(num_rep > 0){
+
+    vx_rep = vx_rep / num_rep;
+    vy_rep = vy_rep / num_rep;
 
   }
 
