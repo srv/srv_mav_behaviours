@@ -56,6 +56,7 @@ void SafetyManager::configure(){
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
 
   desired_vel_received = false;
+  laser_scan_received = false;
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -87,7 +88,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
     laser_num_ranges = laser_scan.ranges.size();
     laser_angle_incr = laser_scan.angle_increment;
     laser_angle_min = laser_scan.angle_min;
-    half_scans_attenuation = round((scan_degrees_for_attenuation / laser_angle_incr) / 2.0);
+    half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
   }
 
   laser_scan_received = true;
@@ -157,14 +158,19 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
   int initial_index = std::max(0, index - half_scans_attenuation);
   int final_index = std::min(laser_num_ranges-1, index + half_scans_attenuation);
 
-  float min_range = laser_scan.ranges[initial_index];
+  float min_range = 100.0;
 
-  for (int i = initial_index + 1; i <= final_index; i++){
+  for (int i = initial_index; i <= final_index; i++){
 
-    if (laser_scan.ranges[i] < min_range){
+    float range = laser_scan.ranges[i];
 
-      min_range = laser_scan.ranges[i];
+    if (!std::isnan(range)){
 
+      if (range < min_range){
+
+        min_range = range;
+
+      }
     }
 
   }
@@ -176,6 +182,13 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
   // attenuation = std::min(1.0, P)
 
   double attenuation = std::min(1.0, std::max(0.0, min_range - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
+
+  ROS_INFO("Angle: %f", angle);
+  ROS_INFO("index: %d", index);
+  ROS_INFO("initial_index: %d", initial_index);
+  ROS_INFO("final_index: %d", final_index);
+  ROS_INFO("min_range: %f", min_range);
+  ROS_INFO("Attenuation: %f", attenuation);
 
   //attenuation is in [0.0, 1.0]
 
