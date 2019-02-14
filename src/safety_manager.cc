@@ -126,6 +126,16 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   final_vz = desired_vz;
   final_vyaw = desired_vyaw;
 
+  // limit with the maximum speed allowed
+  if (final_vx > max_speed_xy) final_vx = max_speed_xy;
+  else if (final_vx < -max_speed_xy) final_vx = -max_speed_xy;
+
+  if (final_vy > max_speed_xy) final_vy = max_speed_xy;
+  else if (final_vy < -max_speed_xy) final_vy = -max_speed_xy;
+
+  if (final_vz > max_speed_z) final_vz = max_speed_z;
+  else if (final_vz < -max_speed_z) final_vz = -max_speed_z;
+
   // publish final velocity command
 
   geometry_msgs::TwistPtr final_twist(new geometry_msgs::Twist);
@@ -159,6 +169,12 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
 
   }
 
+  // Ds = min_range - min_distance_wall                  --> Distance to the stop fence
+  // Dsp = std::max(0.0, Ds)                             --> Ds must be positive. If Ds is negative the attenuation is complete
+  // Da = attenuation_distance_wall - min_distance_wall  --> Distance from the attenuation fence to the stop fence
+  // P = Dsp / Da                                        --> Situation between fences given as a proportion. It P > 1 there is no attenuation
+  // attenuation = std::min(1.0, P)
+
   double attenuation = std::min(1.0, std::max(0.0, min_range - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
 
   //attenuation is in [0.0, 1.0]
@@ -182,6 +198,10 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
     if (!std::isnan(range)){
 
       if(range < min_distance_wall){
+
+        // Dt = min_distance_wall-range          --> Indicates how much we have trespassed the stop fence. It is always positive.
+        // R = K_wall_repulsion * Dt             --> Repulsion speed 
+        // repulsion = std::min(max_speed_xy, R) --> Limit repulsion with the maximum speed allowed
 
         double repulsion = std::min(max_speed_xy, K_wall_repulsion * (min_distance_wall-range));
 
