@@ -183,12 +183,8 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
 
   double attenuation = std::min(1.0, std::max(0.0, min_range - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
 
-  ROS_INFO("Angle: %f", angle);
-  ROS_INFO("index: %d", index);
-  ROS_INFO("initial_index: %d", initial_index);
-  ROS_INFO("final_index: %d", final_index);
-  ROS_INFO("min_range: %f", min_range);
-  ROS_INFO("Attenuation: %f", attenuation);
+  /*ROS_INFO("min_range: %f", min_range);
+  ROS_INFO("Attenuation: %f", attenuation);*/
 
   //attenuation is in [0.0, 1.0]
 
