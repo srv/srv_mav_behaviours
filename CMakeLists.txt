@@ -37,7 +37,7 @@ endif()
 message(STATUS "Compiler flags: ${CMAKE_CXX_FLAGS}")
 
 # Catkin dependencies
-find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs dynamic_reconfigure)
 
 # Other packages
 find_package(OpenCV REQUIRED) # OpenCV
@@ -49,9 +49,9 @@ if (OPENMP_FOUND)
 endif()
 
 #Add dynamic reconfigure api
-# generate_dynamic_reconfigure_options(
-#   cfg/safety_manager.cfg
-# )
+generate_dynamic_reconfigure_options(
+  cfg/safety_manager.cfg
+)
 
 # Generate services in the 'srv' folder
 # add_service_files(
@@ -70,7 +70,7 @@ endif()
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES safety_manager
-    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs
+    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs dynamic_reconfigure
     DEPENDS OpenCV Boost
 )
 
@@ -103,5 +103,6 @@ target_link_libraries(safety_manager_node
                       ${OpenCV_LIBRARIES}
                       ${Boost_LIBRARIES}
                       )
-# add_dependencies(safety_manager_node 
-#                       ${PROJECT_NAME}_gencfg) 
+add_dependencies(safety_manager_node 
+                      ${PROJECT_NAME}_gencfg) 
+

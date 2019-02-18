@@ -25,10 +25,31 @@ SafetyManager::SafetyManager(const ros::NodeHandle& nh) :
   nh_(nh)
 {
 
+  reconfigure_server_.setCallback(boost::bind(&SafetyManager::dynReconfig, this, _1, _2));
   configure();
 }
 
 SafetyManager::~SafetyManager(){
+}
+
+void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level){
+
+  max_speed_xy = config.max_speed_xy;
+  max_speed_z = config.max_speed_z;
+
+  laser_filter_size = config.laser_filter_size; // size of the window used to filter the laser scan (mean filter)
+  laser_half_filter = laser_filter_size / 2; 
+  laser_filter_size = laser_half_filter * 2 + 1; // 11 --> 11; 10 --> 11 (filter size always becomes an odd number)
+
+  min_distance_wall = config.min_distance_wall; // minimum distance allowed from walls
+  attenuation_distance_wall = config.attenuation_distance_wall; // distance from the wall in meters to start attenuating the speed
+  scan_degrees_for_attenuation = config.scan_degrees_for_attenuation; // angular sector of the laser scan considered when computing the attenuation (in degrees)
+  K_wall_repulsion = config.K_wall_repulsion; // speed for repulsion after penetrating 1m in the forbidden area
+
+  if(laser_scan_received){
+    half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
+  }
+
 }
 
 void SafetyManager::configure(){

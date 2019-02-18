@@ -24,6 +24,8 @@
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/LaserScan.h>
 
+#include <dynamic_reconfigure/server.h>
+#include <srv_mav_behaviours/safety_managerConfig.h>
 
 namespace srv_mav_behaviours {
 
@@ -46,6 +48,8 @@ class SafetyManager {
 
   ros::Timer timer_;
 
+  dynamic_reconfigure::Server<srv_mav_behaviours::safety_managerConfig> reconfigure_server_;
+
   // Params
   double min_distance_wall, max_height;
   double attenuation_distance_wall;
@@ -66,6 +70,9 @@ class SafetyManager {
   int laser_half_filter;
 
   // Services
+
+  // Reconfigure
+  void dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level);
 
   // Callbacks
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
