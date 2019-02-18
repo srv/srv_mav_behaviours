@@ -98,6 +98,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   }
 
   float mean_range = 0.0;
+  int good_ranges  = 0;
 
   for (int i = 0; i <= 2*laser_half_filter; i++){
 
@@ -105,16 +106,17 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
     if(!std::isnan(range)){
 
-      mean_range += range/laser_filter_size;
+      mean_range += range;
+      good_ranges ++;
 
     }
 
   }
 
-  if(mean_range != 0.0){ // some value different from Nan
-    if(!std::isnan(laser_scan_msg->ranges[laser_half_filter])){
-      laser_scan.ranges[laser_half_filter] = mean_range;
-    }
+  if(!std::isnan(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
+
+    laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
+
   }
 
   for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
@@ -123,9 +125,16 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
     float newRange = laser_scan_msg->ranges[i+laser_half_filter];
     float range = laser_scan_msg->ranges[i];
 
-    if(!std::isnan(oldRange)) mean_range -= oldRange / laser_filter_size;
-    if(!std::isnan(newRange)) mean_range += newRange / laser_filter_size;
-    if(!std::isnan(range)) laser_scan.ranges[i] = mean_range;
+    if(!std::isnan(oldRange)){
+      mean_range -= oldRange;
+      good_ranges --;
+    }
+
+    if(!std::isnan(newRange)){
+      mean_range += newRange;
+      good_ranges ++;
+    }
+    if(!std::isnan(range)) laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
 
   }
 
