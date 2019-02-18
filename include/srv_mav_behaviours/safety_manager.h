@@ -52,6 +52,7 @@ class SafetyManager {
   double scan_degrees_for_attenuation;
   double K_wall_repulsion;
   double max_speed_xy, max_speed_z;
+  int laser_filter_size;
 
   // Global variables
   geometry_msgs::Twist user_desired_vel;
