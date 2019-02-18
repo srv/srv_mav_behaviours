@@ -61,6 +61,7 @@ class SafetyManager {
   float laser_angle_incr;
   float laser_angle_min;
   int half_scans_attenuation;
+  int laser_half_filter;
 
   // Services
 

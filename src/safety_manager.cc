@@ -55,8 +55,14 @@ void SafetyManager::configure(){
   nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed for repulsion after penetrating 1m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
 
+  int laser_filter_size;
+  nh_.param("laser_filter_size", laser_filter_size, 11); // size of the window used to filter the laser scan
+  ROS_INFO("Laser_filter_size: %d", laser_filter_size);
+
   desired_vel_received = false;
   laser_scan_received = false;
+
+  laser_half_filter = round(laser_filter_size / 2) - 1;
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -89,6 +95,38 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
     laser_angle_incr = laser_scan.angle_increment;
     laser_angle_min = laser_scan.angle_min;
     half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
+  }
+
+  float mean_range = 0.0;
+
+  for (int i = 0; i <= 2*laser_half_filter; i++){
+
+    float range = laser_scan_msg->ranges[i]
+
+    if(!std::isnan(range)){
+
+      mean_range += range;
+
+    }
+
+  }
+
+  if(mean_range != 0.0){ // some value different from Nan
+    if(!std::isnan(laser_scan_msg->ranges[laser_half_filter])){
+      laser_scan.ranges[laser_half_filter] = mean_range;
+    }
+  }
+
+  for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
+
+    float oldRange = laser_scan_msg->ranges[i-laser_half_filter-1];
+    float newRange = laser_scan_msg->ranges[i+laser_half_filter];
+    float range = laser_scan_msg->ranges[i];
+
+    if(!std::isnan(oldRange)) mean_range -= oldRange;
+    if(!std::isnan(newRange)) mean_range += newRange;
+    if(!std::isnan(range)) laser_scan.ranges[i] = mean_range;
+
   }
 
   laser_scan_received = true;
