@@ -43,6 +43,11 @@ void SafetyManager::configure(){
   nh_.param("max_speed_z", max_speed_z, 0.7);
   ROS_INFO("Max_speed_z: %2.2f", max_speed_z);
 
+  nh_.param("laser_filter_size", laser_filter_size, 11); // size of the window used to filter the laser scan (mean filter)
+  laser_half_filter = laser_filter_size / 2; 
+  laser_filter_size = laser_half_filter * 2 + 1; // 11 --> 11; 10 --> 11 (filter size always becomes an odd number)
+  ROS_INFO("Laser_filter_size: %d", laser_filter_size);
+
   nh_.param("min_distance_wall", min_distance_wall, 1.2); // minimum distance allowed from walls
   ROS_INFO("Min_distance_wall: %2.2f", min_distance_wall);
 
@@ -54,11 +59,6 @@ void SafetyManager::configure(){
 
   nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed for repulsion after penetrating 1m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
-
-  nh_.param("laser_filter_size", laser_filter_size, 11); // size of the window used to filter the laser scan
-  laser_half_filter = round(laser_filter_size / 2) - 1;
-  laser_filter_size = laser_half_filter * 2 + 1;
-  ROS_INFO("Laser_filter_size: %d", laser_filter_size);
 
   desired_vel_received = false;
   laser_scan_received = false;
