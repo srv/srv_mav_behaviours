@@ -42,6 +42,7 @@ class SafetyManager {
   ros::Subscriber laser_scan_subs_;
 
   ros::Publisher twist_pub_;
+  ros::Publisher laser_pub_;
 
   ros::Timer timer_;
 

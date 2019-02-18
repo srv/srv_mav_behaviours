@@ -66,6 +66,7 @@ void SafetyManager::configure(){
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
+  laser_pub_ = nh_.advertise<sensor_msgs::LaserScan>("laser_obstacles", 1);
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
@@ -101,7 +102,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
   for (int i = 0; i <= 2*laser_half_filter; i++){
 
-    float range = laser_scan_msg->ranges[i]
+    float range = laser_scan_msg->ranges[i];
 
     if(!std::isnan(range)){
 
@@ -128,6 +129,8 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
     if(!std::isnan(range)) laser_scan.ranges[i] = mean_range;
 
   }
+
+  laser_pub_.publish(laser_scan);
 
   laser_scan_received = true;
 
