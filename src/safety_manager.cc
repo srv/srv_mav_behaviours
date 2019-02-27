@@ -46,9 +46,14 @@ void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config
   scan_degrees_for_attenuation = config.scan_degrees_for_attenuation; // angular sector of the laser scan considered when computing the attenuation (in degrees)
   K_wall_repulsion = config.K_wall_repulsion; // speed for repulsion after penetrating 1m in the forbidden area
 
+  max_height = config.max_height;
+  attenuation_max_height = config.attenuation_max_height; // height in meters to start attenuating the vertical speed
+
   if(laser_scan_received){
     half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
   }
+
+  checkParameters();
 
 }
 
@@ -78,11 +83,23 @@ void SafetyManager::configure(){
   nh_.param("scan_degrees_for_attenuation", scan_degrees_for_attenuation, 40.0); // angular sector of the laser scan considered when computing the attenuation (in degrees)
   ROS_INFO("scan_degrees_for_attenuation: %2.2f", scan_degrees_for_attenuation);
 
-  nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed for repulsion after penetrating 1m in the forbidden area
+  nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
+
+  nh_.param("max_height", max_height, 4.0);
+  ROS_INFO("Max_height: %2.2f", max_height);
+
+  nh_.param("attenuation_max_height", attenuation_max_height, 3.0); // height in meters to start attenuating the positive vertical speed
+  ROS_INFO("attenuation_max_height: %2.2f", attenuation_max_height);
+
+  nh_.param("K_max_height_attraction", K_max_height_attraction, 1.0);
+  ROS_INFO("K_max_height_attraction: %2.2f", K_max_height_attraction); //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
+
+  checkParameters();
 
   desired_vel_received = false;
   laser_scan_received = false;
+  height_received = false;
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -98,6 +115,38 @@ void SafetyManager::configure(){
 
   // Timers
   timer_ = nh_.createTimer(ros::Duration(1.0 / frequency), &SafetyManager::timerClb, this);
+}
+
+void SafetyManager::checkParameters(){
+
+  max_speed_xy = abs(max_speed_xy);
+  max_speed_z = abs(max_speed_z);
+
+  min_distance_wall = abs(min_distance_wall);
+  attenuation_distance_wall = abs(attenuation_distance_wall);
+  K_wall_repulsion = abs(K_wall_repulsion);
+
+  max_height = abs(max_height);
+  attenuation_max_height = abs(attenuation_max_height);
+  K_max_height_attraction = abs(K_max_height_attraction);
+
+  if(attenuation_distance_wall <= min_distance_wall){
+    attenuation_distance_wall = min_distance_wall + 1;
+    ROS_WARN("attenuation_distance_wall must be larger than min_distance_wall");
+    ROS_WARN("attenuation_distance_wall set to %2.2f", attenuation_distance_wall);
+  }
+
+  if(max_height < 2.0){
+    max_height = 2.0;
+    ROS_WARN("max_height set to %2.2f m", max_height);
+  }
+
+  if(attenuation_max_height >= max_height){
+    attenuation_max_height = max_height - 1;
+    ROS_WARN("attenuation_max_height must be below max_height");
+    ROS_WARN("attenuation_max_height set to %2.2f", attenuation_max_height);
+  }
+
 }
 
 void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg){
@@ -165,9 +214,16 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
 }
 
+void SafetyManager::heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg){
+
+  height = height_msg->z;
+  height_received = true;
+
+}
+
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(desired_vel_received && laser_scan_received)) return;
+  if(!(desired_vel_received && laser_scan_received && height_received)) return;
 
   // get the desired command
 
@@ -180,21 +236,25 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   //TODO: if user_desired_vel is 0 and the positionCtrl_vel is not 0, then use the last as desired velocity
 
-  // attenuate the desired command with the proximity of obstacles
-
+  // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
 
-  // compute the repulsions from the surrounding obstacles
+  //attenuate the desired command in Z with the proximity to the maximum height allowed
+  attenuateZMaxHeight(desired_vz);
 
+  // compute the repulsions from the surrounding obstacles
   double vx_rep, vy_rep;
   computeXYRepulsion(vx_rep, vy_rep);
 
-  // compute final velocity command
+  // compute the attraction to the ground when trespassing the maximum height allowed
+  double vz_att;
+  computeZAttraction(vz_att);
 
+  // compute final velocity command
   double final_vx, final_vy, final_vz, final_vyaw;
   final_vx = desired_vx + vx_rep;
   final_vy = desired_vy + vy_rep;
-  final_vz = desired_vz;
+  final_vz = desired_vz + vz_att;
   final_vyaw = desired_vyaw;
 
   // limit with the maximum speed allowed
@@ -304,6 +364,35 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
     vy_rep = vy_rep / num_rep;
 
   }
+
+}
+
+void SafetyManager::attenuateZMaxHeight(double & z_vel){
+
+  // Ds = max_height - height                  --> Distance to the maximum height
+  // Dsp = std::max(0.0, Ds)                   --> Ds must be positive. If Ds is negative the attenuation is complete
+  // Da = max_height - attenuation_max_height  --> Distance from the attenuation fence to the stop fence
+  // P = Dsp / Da                              --> Situation between fences given as a proportion. It P > 1 there is no attenuation
+  // attenuation = std::min(1.0, P)
+
+  double attenuation = std::min(1.0, std::max(0.0, max_height - height) / (max_height - attenuation_max_height));
+
+  //attenuation is in [0.0, 1.0]
+
+  z_vel = z_vel * attenuation;
+
+}
+
+void SafetyManager::computeZAttraction(double & vz_att){
+
+  vz_att = 0.0;
+
+  // Dt = max(0.0, height-max_height)      --> Indicates how much we have trespassed the maximum height. A negative value means no attraction.
+  // A = K_max_height_attraction * Dt      --> Attraction speed 
+  // attraction = std::min(max_speed_z, A) --> Limit repulsion with the maximum speed allowed
+
+  // negative speed to make the MAV descend
+  vz_att = -std::min(max_speed_z, K_max_height_attraction * std::max(0.0, height-max_height));
 
 }
 

@@ -23,6 +23,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/LaserScan.h>
+#include <srv_mav_msgs/MAVVerticalState.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
@@ -52,9 +53,9 @@ class SafetyManager {
 
   // Params
   double min_distance_wall, max_height;
-  double attenuation_distance_wall;
+  double attenuation_distance_wall, attenuation_max_height;
   double scan_degrees_for_attenuation;
-  double K_wall_repulsion;
+  double K_wall_repulsion, K_max_height_attraction;
   double max_speed_xy, max_speed_z;
   int laser_filter_size;
 
@@ -68,6 +69,8 @@ class SafetyManager {
   float laser_angle_min;
   int half_scans_attenuation;
   int laser_half_filter;
+  double height;
+  bool height_received;
 
   // Services
 
@@ -77,11 +80,15 @@ class SafetyManager {
   // Callbacks
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg);
+  void heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg);
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods
+  void checkParameters();
   void attenuateXYProximity(double & x_vel, double & y_vel);
   void computeXYRepulsion(double & vx_rep, double & vy_rep);
+  void attenuateZMaxHeight(double & z_vel);
+  void computeZAttraction(double & vz_att);
 
 };
 
