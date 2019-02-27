@@ -44,10 +44,11 @@ void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config
   min_distance_wall = config.min_distance_wall; // minimum distance allowed from walls
   attenuation_distance_wall = config.attenuation_distance_wall; // distance from the wall in meters to start attenuating the speed
   scan_degrees_for_attenuation = config.scan_degrees_for_attenuation; // angular sector of the laser scan considered when computing the attenuation (in degrees)
-  K_wall_repulsion = config.K_wall_repulsion; // speed for repulsion after penetrating 1m in the forbidden area
+  K_wall_repulsion = config.K_wall_repulsion; // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
 
   max_height = config.max_height;
   attenuation_max_height = config.attenuation_max_height; // height in meters to start attenuating the vertical speed
+  K_max_height_attraction = config. K_max_height_attraction; //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
 
   if(laser_scan_received){
     half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
