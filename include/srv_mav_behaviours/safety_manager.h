@@ -41,7 +41,7 @@ class SafetyManager {
   // ROS variables
   ros::NodeHandle nh_;
 
-  ros::Subscriber user_twist_subs_, mission_twist_subs_;
+  ros::Subscriber user_twist_subs_, mission_twist_subs_, height_subs_;
   ros::Subscriber laser_scan_subs_;
 
   ros::Publisher twist_pub_;

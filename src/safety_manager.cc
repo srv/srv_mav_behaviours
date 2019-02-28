@@ -109,6 +109,7 @@ void SafetyManager::configure(){
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   mission_twist_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
+  height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
 
   // Advertising Services
 
