@@ -371,13 +371,19 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
 void SafetyManager::attenuateZMaxHeight(double & z_vel){
 
-  // Ds = max_height - height                  --> Distance to the maximum height
-  // Dsp = std::max(0.0, Ds)                   --> Ds must be positive. If Ds is negative the attenuation is complete
-  // Da = max_height - attenuation_max_height  --> Distance from the attenuation fence to the stop fence
-  // P = Dsp / Da                              --> Situation between fences given as a proportion. It P > 1 there is no attenuation
-  // attenuation = std::min(1.0, P)
+  double attenuation = 1.0;
 
-  double attenuation = std::min(1.0, std::max(0.0, max_height - height) / (max_height - attenuation_max_height));
+  if(z_vel > 0.0){ // only  if we want to go higher
+
+    // Ds = max_height - height                  --> Distance to the maximum height
+    // Dsp = std::max(0.0, Ds)                   --> Ds must be positive. If Ds is negative the attenuation is complete
+    // Da = max_height - attenuation_max_height  --> Distance from the attenuation fence to the stop fence
+    // P = Dsp / Da                              --> Situation between fences given as a proportion. It P > 1 there is no attenuation
+    // attenuation = std::min(1.0, P)
+
+    attenuation = std::min(1.0, std::max(0.0, max_height - height) / (max_height - attenuation_max_height));
+
+  }
 
   //attenuation is in [0.0, 1.0]
 
