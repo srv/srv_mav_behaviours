@@ -99,8 +99,11 @@ void SafetyManager::configure(){
   checkParameters();
 
   desired_vel_received = false;
+  position_ctrl_vel_received = false;
   laser_scan_received = false;
   height_received = false;
+
+  allowing_position_ctrl = false;
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -108,10 +111,12 @@ void SafetyManager::configure(){
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
-  mission_twist_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
+  position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
+  laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
 
   // Advertising Services
+  request_control_srv_ = nh_.advertiseService("request_control", &SafetyManager::requestControl, this);
 
   //Service clients
 
@@ -148,6 +153,30 @@ void SafetyManager::checkParameters(){
     ROS_WARN("attenuation_max_height must be below max_height");
     ROS_WARN("attenuation_max_height set to %2.2f", attenuation_max_height);
   }
+
+}
+
+bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res){
+
+  if(!allowing_position_ctrl){
+
+    allowing_position_ctrl = true;
+    res.allowed = true;
+    ROS_WARN("Allowing autonomous behaviour");
+
+  }else{
+    res.allowed = false;
+    ROS_WARN("Autonomous behaviour was already allowed");
+  }
+
+  return true;
+
+}
+
+void SafetyManager::positionCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg){
+
+  position_ctrl_vel = *twist_msg;
+  position_ctrl_vel_received = true;
 
 }
 
@@ -235,6 +264,26 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   desired_vy = user_desired_vel.linear.y;
   desired_vz = user_desired_vel.linear.z;
   desired_vyaw = user_desired_vel.angular.z;
+
+  if(allowing_position_ctrl){
+
+    if((desired_vx == 0.0) && (desired_vy == 0.0)){
+
+      desired_vx = position_ctrl_vel.linear.x;
+      desired_vy = position_ctrl_vel.linear.y;
+      desired_vz = position_ctrl_vel.linear.z;
+
+    }else{ // the autonomous behaviour can be stopped sending commands in vX or vY
+
+      allowing_position_ctrl = false;
+      ROS_WARN("Stopping autonomous behaviour");
+
+      //stop all the autonomous behaviours
+      nh_.setParam("performing_sweep", false);
+
+    }
+
+  }
 
   //TODO: if user_desired_vel is 0 and the positionCtrl_vel is not 0, then use the last as desired velocity
 

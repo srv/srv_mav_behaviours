@@ -37,7 +37,7 @@ endif()
 message(STATUS "Compiler flags: ${CMAKE_CXX_FLAGS}")
 
 # Catkin dependencies
-find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs srv_mav_msgs dynamic_reconfigure)
+find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs dynamic_reconfigure message_generation)
 
 # Other packages
 find_package(OpenCV REQUIRED) # OpenCV
@@ -51,26 +51,27 @@ endif()
 #Add dynamic reconfigure api
 generate_dynamic_reconfigure_options(
   cfg/safety_manager.cfg
+  cfg/mission_manager.cfg
 )
 
 # Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   ToggleCommandMode.srv
-#   ArmMotors.srv
-# )
+add_service_files(
+  FILES
+  RequestControl.srv
+  StartSweep.srv
+)
 
 # Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs  # Or other packages containing msgs
+)
 
 # Defining the package
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES safety_manager
-    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs srv_mav_msgs dynamic_reconfigure
+    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs dynamic_reconfigure message_runtime
     DEPENDS OpenCV Boost
 )
 
@@ -81,6 +82,8 @@ include_directories(include
                     )
 
 ### Targets ###
+
+# --------------Safety Manager----------------
 # Library
 add_library(safety_manager
             src/safety_manager.cc)
@@ -94,7 +97,7 @@ add_dependencies(safety_manager
                       ${OpenCV_EXPORTED_TARGETS}
                       ${Boost_EXPORTED_TARGETS})
 
-# Nodes
+# Node
 add_executable(safety_manager_node
                src/safety_manager_node.cc)
 target_link_libraries(safety_manager_node
@@ -104,5 +107,31 @@ target_link_libraries(safety_manager_node
                       ${Boost_LIBRARIES}
                       )
 add_dependencies(safety_manager_node 
+                      ${PROJECT_NAME}_gencfg) 
+
+# --------------Mission Manager----------------
+# Library
+add_library(mission_manager
+            src/mission_manager.cc)
+target_link_libraries(mission_manager
+                      ${catkin_LIBRARIES}
+                      ${OpenCV_LIBRARIES}
+                      ${Boost_LIBRARIES}
+                      )
+add_dependencies(mission_manager
+                      ${catkin_EXPORTED_TARGETS}
+                      ${OpenCV_EXPORTED_TARGETS}
+                      ${Boost_EXPORTED_TARGETS})
+
+# Node
+add_executable(mission_manager_node
+               src/mission_manager_node.cc)
+target_link_libraries(mission_manager_node
+                      mission_manager
+                      ${catkin_LIBRARIES}
+                      ${OpenCV_LIBRARIES}
+                      ${Boost_LIBRARIES}
+                      )
+add_dependencies(mission_manager_node 
                       ${PROJECT_NAME}_gencfg) 
 

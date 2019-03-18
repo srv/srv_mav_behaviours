@@ -28,6 +28,8 @@
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
 
+#include <srv_mav_behaviours/RequestControl.h>
+
 namespace srv_mav_behaviours {
 
 class SafetyManager {
@@ -41,7 +43,7 @@ class SafetyManager {
   // ROS variables
   ros::NodeHandle nh_;
 
-  ros::Subscriber user_twist_subs_, mission_twist_subs_, height_subs_;
+  ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_, height_subs_;
   ros::Subscriber laser_scan_subs_;
 
   ros::Publisher twist_pub_;
@@ -50,6 +52,9 @@ class SafetyManager {
   ros::Timer timer_;
 
   dynamic_reconfigure::Server<srv_mav_behaviours::safety_managerConfig> reconfigure_server_;
+
+  //Services
+  ros::ServiceServer request_control_srv_;
 
   // Params
   double min_distance_wall, max_height;
@@ -62,6 +67,9 @@ class SafetyManager {
   // Global variables
   geometry_msgs::Twist user_desired_vel;
   bool desired_vel_received;
+  geometry_msgs::Twist position_ctrl_vel;
+  bool position_ctrl_vel_received;
+  bool allowing_position_ctrl;
   sensor_msgs::LaserScan laser_scan;
   bool laser_scan_received;
   int laser_num_ranges;
@@ -73,11 +81,13 @@ class SafetyManager {
   bool height_received;
 
   // Services
+  bool requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res);
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level);
 
   // Callbacks
+  void positionCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg);
   void heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg);
