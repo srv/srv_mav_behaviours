@@ -95,7 +95,8 @@ target_link_libraries(safety_manager
 add_dependencies(safety_manager
                       ${catkin_EXPORTED_TARGETS}
                       ${OpenCV_EXPORTED_TARGETS}
-                      ${Boost_EXPORTED_TARGETS})
+                      ${Boost_EXPORTED_TARGETS}
+                      srv_mav_behaviours_generate_messages_cpp)
 
 # Node
 add_executable(safety_manager_node
@@ -121,7 +122,8 @@ target_link_libraries(mission_manager
 add_dependencies(mission_manager
                       ${catkin_EXPORTED_TARGETS}
                       ${OpenCV_EXPORTED_TARGETS}
-                      ${Boost_EXPORTED_TARGETS})
+                      ${Boost_EXPORTED_TARGETS}
+                      srv_mav_behaviours_generate_messages_cpp)
 
 # Node
 add_executable(mission_manager_node
