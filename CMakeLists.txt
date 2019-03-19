@@ -37,7 +37,7 @@ endif()
 message(STATUS "Compiler flags: ${CMAKE_CXX_FLAGS}")
 
 # Catkin dependencies
-find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs dynamic_reconfigure message_generation)
+find_package(catkin REQUIRED COMPONENTS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs srv_mav_control dynamic_reconfigure message_generation)
 
 # Other packages
 find_package(OpenCV REQUIRED) # OpenCV
@@ -71,7 +71,7 @@ generate_messages(
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES safety_manager
-    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs dynamic_reconfigure message_runtime
+    CATKIN_DEPENDS roscpp sensor_msgs geometry_msgs nav_msgs tf srv_mav_msgs srv_mav_control dynamic_reconfigure message_runtime
     DEPENDS OpenCV Boost
 )
 
