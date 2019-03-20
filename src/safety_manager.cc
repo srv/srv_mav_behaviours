@@ -54,6 +54,8 @@ void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config
     half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
   }
 
+  front_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
+
   checkParameters();
 
 }
@@ -103,11 +105,14 @@ void SafetyManager::configure(){
   laser_scan_received = false;
   height_received = false;
 
+  front_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
+
   allowing_position_ctrl = false;
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
   laser_pub_ = nh_.advertise<sensor_msgs::LaserScan>("laser_obstacles", 1);
+  range_pub_ = nh_.advertise<sensor_msgs::Range>("mean_distance_front", 1);
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
@@ -328,6 +333,19 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   twist_pub_.publish(final_twist);
 
+  // compute and publish the mean distance to the front wall
+
+  sensor_msgs::RangePtr range_front(new sensor_msgs::Range);
+  range_front->header = laser_scan.header;
+  range_front->radiation_type = 1;
+  range_front->min_range = laser_scan.range_min;
+  range_front->max_range = laser_scan.range_max;
+  range_front->field_of_view = front_distance_fov;
+  range_front->range = getMeanDistanceFront();
+
+  range_pub_.publish(range_front);
+
+
 }
 
 void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
@@ -450,6 +468,35 @@ void SafetyManager::computeZAttraction(double & vz_att){
 
   // negative speed to make the MAV descend
   vz_att = -std::min(max_speed_z, K_max_height_attraction * std::max(0.0, height-max_height));
+
+}
+
+float SafetyManager::getMeanDistanceFront(){
+
+  int central_range = laser_num_ranges / 2;
+
+  int initial_range = central_range - half_scans_attenuation;
+  int final_range = central_range + half_scans_attenuation;
+
+  float mean_range = 0.0;
+  int num_elem = 0;
+
+  for (int i = initial_range; i <= final_range; i++){
+
+    float range = laser_scan.ranges[i];
+
+    if (!std::isnan(range)){
+
+      mean_range += range;
+      num_elem ++;
+
+    }
+
+  }
+
+  mean_range = mean_range / num_elem;
+
+  return mean_range;
 
 }
 

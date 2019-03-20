@@ -24,6 +24,7 @@
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/LaserScan.h>
 #include <srv_mav_msgs/MAVVerticalState.h>
+#include <sensor_msgs/Range.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
@@ -48,6 +49,7 @@ class SafetyManager {
 
   ros::Publisher twist_pub_;
   ros::Publisher laser_pub_;
+  ros::Publisher range_pub_;
 
   ros::Timer timer_;
 
@@ -79,6 +81,7 @@ class SafetyManager {
   int laser_half_filter;
   double height;
   bool height_received;
+  double front_distance_fov;
 
   // Services
   bool requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res);
@@ -99,6 +102,7 @@ class SafetyManager {
   void computeXYRepulsion(double & vx_rep, double & vy_rep);
   void attenuateZMaxHeight(double & z_vel);
   void computeZAttraction(double & vz_att);
+  float getMeanDistanceFront();
 
 };
 
