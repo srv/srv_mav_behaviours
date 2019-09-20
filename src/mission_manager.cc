@@ -36,6 +36,10 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
 
   min_height = config.min_height;
   max_height = config.max_height;
+  sweep_y_size = sweep_y_size;
+  sweep_z_size = sweep_z_size;
+  sweep_z_increment = sweep_z_increment;
+  sweep_WP_error = sweep_WP_error;
 
   checkParameters();
 
