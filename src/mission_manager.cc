@@ -171,7 +171,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     WP_y = current_y + world_incr.getY();
     WP_z = current_z;
     initial_yaw_sweep = current_yaw;
-    final_z_sweep = current_z - sweep_y_size;
+    final_z_sweep = current_z - sweep_z_size;
 
     performing_sweep = true;    
     nh_.setParam("performing_sweep", performing_sweep);
