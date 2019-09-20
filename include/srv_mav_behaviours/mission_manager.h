@@ -30,6 +30,7 @@
 
 #include <srv_mav_behaviours/StartSweep.h>
 #include <srv_mav_behaviours/RequestControl.h>
+#include <srv_mav_behaviours/GiveUpControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
 
 namespace srv_mav_behaviours {
@@ -70,7 +71,7 @@ class MissionManager {
   int sweep_status;
 
   // Services
-  ros::ServiceClient request_control_client_, enable_position_control_client_;
+  ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
   ros::ServiceServer start_sweep_srv_;
 
   // Reconfigure

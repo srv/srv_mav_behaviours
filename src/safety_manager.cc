@@ -122,6 +122,7 @@ void SafetyManager::configure(){
 
   // Advertising Services
   request_control_srv_ = nh_.advertiseService("request_control", &SafetyManager::requestControl, this);
+  give_up_control_srv_ = nh_.advertiseService("give_up_control", &SafetyManager::giveUpControl, this);
 
   //Service clients
 
@@ -167,11 +168,28 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
 
     allowing_position_ctrl = true;
     res.allowed = true;
-    ROS_WARN("Allowing autonomous behaviour");
+    ROS_INFO("Allowing autonomous behaviour");
 
   }else{
     res.allowed = false;
     ROS_WARN("Autonomous behaviour was already allowed");
+  }
+
+  return true;
+
+}
+
+bool SafetyManager::giveUpControl(srv_mav_behaviours::GiveUpControl::Request &req, srv_mav_behaviours::GiveUpControl::Response &res){
+
+  if(allowing_position_ctrl){
+
+    allowing_position_ctrl = false;
+    res.ok = true;
+    ROS_INFO("No autonomous behaviours in course");
+
+  }else{
+    res.ok = false;
+    ROS_WARN("Autonomous behaviours were not allowed");
   }
 
   return true;

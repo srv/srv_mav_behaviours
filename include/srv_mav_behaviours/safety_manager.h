@@ -30,6 +30,7 @@
 #include <srv_mav_behaviours/safety_managerConfig.h>
 
 #include <srv_mav_behaviours/RequestControl.h>
+#include <srv_mav_behaviours/GiveUpControl.h>
 
 namespace srv_mav_behaviours {
 
@@ -57,6 +58,7 @@ class SafetyManager {
 
   //Services
   ros::ServiceServer request_control_srv_;
+  ros::ServiceServer give_up_control_srv_;
 
   // Params
   double min_distance_wall, max_height;
@@ -85,6 +87,7 @@ class SafetyManager {
 
   // Services
   bool requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res);
+  bool giveUpControl(srv_mav_behaviours::GiveUpControl::Request &req, srv_mav_behaviours::GiveUpControl::Response &res);
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level);

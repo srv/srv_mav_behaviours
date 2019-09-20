@@ -58,6 +58,7 @@ generate_dynamic_reconfigure_options(
 add_service_files(
   FILES
   RequestControl.srv
+  GiveUpControl.srv
   StartSweep.srv
 )
 

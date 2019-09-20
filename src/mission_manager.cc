@@ -93,6 +93,7 @@ void MissionManager::configure(){
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
+  give_up_control_client_ = nh_.serviceClient<srv_mav_behaviours::GiveUpControl>("give_up_control");
   enable_position_control_client_ = nh_.serviceClient<srv_mav_control::EnablePositionControl>("enable_position_control");
 
   // Timers
@@ -308,6 +309,10 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       if(!enable_pos_ctrl.response.enabled){
         position_ctrl_enabled = false;
       }
+
+      // give up control to the Safety Manager
+      srv_mav_behaviours::GiveUpControl give_up_control;
+      give_up_control_client_.call(give_up_control);
     }
 
   }
