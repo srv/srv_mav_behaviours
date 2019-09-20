@@ -57,17 +57,23 @@ void MissionManager::configure(){
   nh_.param("max_height", max_height, 2.0);
   ROS_INFO("Max height: %2.2f", max_height); // maximum height for the autonomous behaviours
 
-  nh_.param("sweep_y_size", sweep_y_size, 3.0);
-  ROS_INFO("Sweep_y_size: %2.2f", sweep_y_size);
+  if(!performing_sweep){
 
-  nh_.param("sweep_z_size", sweep_z_size, 3.0);
-  ROS_INFO("Sweep_z_size: %2.2f", sweep_z_size);
+    nh_.param("sweep_y_size", sweep_y_size, 3.0);
+    ROS_INFO("Sweep_y_size: %2.2f", sweep_y_size);
 
-  nh_.param("sweep_z_increment", sweep_z_increment, 1.0);
-  ROS_INFO("Sweep_z_increment: %2.2f", sweep_z_increment);
+    nh_.param("sweep_z_size", sweep_z_size, 3.0);
+    ROS_INFO("Sweep_z_size: %2.2f", sweep_z_size);
 
-  nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
-  ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
+    nh_.param("sweep_z_increment", sweep_z_increment, 1.0);
+    ROS_INFO("Sweep_z_increment: %2.2f", sweep_z_increment);
+
+    nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
+    ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
+
+  }else{
+    ROS_WARN("Sweeping parameters can not be modified now");
+  }
 
   checkParameters();
 
