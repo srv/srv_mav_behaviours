@@ -81,10 +81,12 @@ void MissionManager::configure(){
 
   odometry_received = false;
 
-  position_ctrl_enabled = false;
+  position_control_granted = false;
+  nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
+
+  position_controllers_enabled = false;
 
   performing_sweep = false;
-  nh_.setParam("performing_sweep", performing_sweep);
 
   WP_x = WP_y = WP_z = 0.0;
   initial_yaw_sweep = 0.0;
@@ -168,6 +170,8 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(request_control.response.allowed){ // start the sweep
 
+    position_control_granted = true;
+
     //the sweep starts from the top left corner
 
     //compute the first displacement
@@ -186,7 +190,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     final_z_sweep = current_z - sweep_z_size;
 
     performing_sweep = true;    
-    nh_.setParam("performing_sweep", performing_sweep);
+  
     sweep_status = 0;
     ROS_WARN("Starting new sweep");
 
@@ -219,7 +223,13 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   if(!(odometry_received)) return;
 
-  nh_.getParam("performing_sweep", performing_sweep);
+  nh_.getParam("position_control_granted", position_control_granted);
+
+  if (!position_control_granted){//stop all the behaviours
+
+    performing_sweep = false;
+
+  }
 
   if(performing_sweep){
 
@@ -243,14 +253,12 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
           ROS_WARN("Flying too low to keep on sweeping");
 
           performing_sweep = false;
-          nh_.setParam("performing_sweep", performing_sweep);
 
         }else if(aux_WP_z < final_z_sweep){
 
           ROS_WARN("Sweep finised");
 
           performing_sweep = false;
-          nh_.setParam("performing_sweep", performing_sweep);
 
         }else{
 
@@ -284,9 +292,18 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     } 
 
+    if(!performing_sweep){ // the sweeping has been stopped now
+
+      // give up control to the Safety Manager
+      srv_mav_behaviours::GiveUpControl give_up_control;
+      give_up_control_client_.call(give_up_control);
+      position_control_granted = false;
+
+    }
+
   }
 
-  if(performing_sweep){ // or any other mission/behaviour
+  if(position_control_granted){ // perform some mission/behaviour
 
     // publish the current WP
     geometry_msgs::PosePtr pose_WP(new geometry_msgs::Pose);
@@ -296,7 +313,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     pose_pub_.publish(pose_WP);
 
-    if(!position_ctrl_enabled){
+    if(!position_controllers_enabled){
 
       //enable position control
       srv_mav_control::EnablePositionControl enable_pos_ctrl;
@@ -304,14 +321,14 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       enable_position_control_client_.call(enable_pos_ctrl);
 
       if(enable_pos_ctrl.response.enabled){
-        position_ctrl_enabled = true;
+        position_controllers_enabled = true;
       }
 
     }
 
   }else{ // do not perform any behaviour/mission
 
-    if(position_ctrl_enabled){
+    if(position_controllers_enabled){
 
       //disable position_control
       srv_mav_control::EnablePositionControl enable_pos_ctrl;
@@ -319,12 +336,8 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       enable_position_control_client_.call(enable_pos_ctrl);
 
       if(!enable_pos_ctrl.response.enabled){
-        position_ctrl_enabled = false;
+        position_controllers_enabled = false;
       }
-
-      // give up control to the Safety Manager
-      srv_mav_behaviours::GiveUpControl give_up_control;
-      give_up_control_client_.call(give_up_control);
     }
 
   }

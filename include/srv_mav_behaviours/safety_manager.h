@@ -73,7 +73,7 @@ class SafetyManager {
   bool desired_vel_received;
   geometry_msgs::Twist position_ctrl_vel;
   bool position_ctrl_vel_received;
-  bool allowing_position_ctrl;
+  bool position_control_granted;
   sensor_msgs::LaserScan laser_scan;
   bool laser_scan_received;
   int laser_num_ranges;

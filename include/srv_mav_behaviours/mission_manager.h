@@ -62,7 +62,7 @@ class MissionManager {
 
   bool odometry_received;
 
-  bool position_ctrl_enabled;
+  bool position_control_granted, position_controllers_enabled;
 
   bool performing_sweep;
   double WP_x, WP_y, WP_z;

@@ -107,7 +107,9 @@ void SafetyManager::configure(){
 
   front_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
 
-  allowing_position_ctrl = false;
+  position_control_granted = false;
+  //prevent all the autonomous behaviours
+  nh_.setParam("position_control_granted", false);
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -164,11 +166,14 @@ void SafetyManager::checkParameters(){
 
 bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res){
 
-  if(!allowing_position_ctrl){
+  if(!position_control_granted){
 
-    allowing_position_ctrl = true;
+    position_control_granted = true;
     res.allowed = true;
     ROS_INFO("Allowing autonomous behaviour");
+
+    //allow autonomous behaviours
+    nh_.setParam("position_control_granted", true);
 
   }else{
     res.allowed = false;
@@ -181,11 +186,14 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
 
 bool SafetyManager::giveUpControl(srv_mav_behaviours::GiveUpControl::Request &req, srv_mav_behaviours::GiveUpControl::Response &res){
 
-  if(allowing_position_ctrl){
+  if(position_control_granted){
 
-    allowing_position_ctrl = false;
+    position_control_granted = false;
     res.ok = true;
     ROS_INFO("No autonomous behaviours in course");
+
+    //stop all the autonomous behaviours
+    nh_.setParam("position_control_granted", false);
 
   }else{
     res.ok = false;
@@ -288,7 +296,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   desired_vz = user_desired_vel.linear.z;
   desired_vyaw = user_desired_vel.angular.z;
 
-  if(allowing_position_ctrl){
+  if(position_control_granted){
 
     if((desired_vx == 0.0) && (desired_vy == 0.0)){
 
@@ -298,17 +306,15 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
     }else{ // the autonomous behaviour can be stopped sending commands in vX or vY
 
-      allowing_position_ctrl = false;
+      position_control_granted = false;
       ROS_WARN("Stopping autonomous behaviour");
 
       //stop all the autonomous behaviours
-      nh_.setParam("performing_sweep", false);
+      nh_.setParam("position_control_granted", false);
 
     }
 
   }
-
-  //TODO: if user_desired_vel is 0 and the positionCtrl_vel is not 0, then use the last as desired velocity
 
   // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
