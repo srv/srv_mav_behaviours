@@ -60,6 +60,9 @@ add_service_files(
   RequestControl.srv
   GiveUpControl.srv
   StartSweep.srv
+  StopSweep.srv
+  PauseSweep.srv
+  ResumeSweep.srv
 )
 
 # Generate added messages and services with any dependencies listed here

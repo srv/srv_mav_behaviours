@@ -29,6 +29,9 @@
 #include <srv_mav_behaviours/mission_managerConfig.h>
 
 #include <srv_mav_behaviours/StartSweep.h>
+#include <srv_mav_behaviours/StopSweep.h>
+#include <srv_mav_behaviours/PauseSweep.h>
+#include <srv_mav_behaviours/ResumeSweep.h>
 #include <srv_mav_behaviours/RequestControl.h>
 #include <srv_mav_behaviours/GiveUpControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
@@ -68,6 +71,7 @@ class MissionManager {
   double WP_x, WP_y, WP_z;
   double initial_yaw_sweep;
   double final_z_sweep;
+  int sweep_state;
   int sweep_status;
 
   // Services
@@ -79,6 +83,9 @@ class MissionManager {
 
   // Services
   bool startSweep(srv_mav_behaviours::StartSweep::Request &req, srv_mav_behaviours::StartSweep::Response &res);
+  bool stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res);
+  bool pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res);
+  bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
 
   // Callbacks
   void odomClb(const nav_msgs::Odometry::ConstPtr& odo_msg);
@@ -86,6 +93,7 @@ class MissionManager {
 
   // Other methods
   void checkParameters();
+  void performSweep();
 
 };
 

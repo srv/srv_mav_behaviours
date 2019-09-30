@@ -39,9 +39,9 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
 
   if(!performing_sweep){
 
-    sweep_y_size = config.sweep_y_size;
-    sweep_z_size = config.sweep_z_size;
-    sweep_z_increment = config.sweep_z_increment;
+    // sweep_y_size = config.sweep_y_size;
+    // sweep_z_size = config.sweep_z_size;
+    // sweep_z_increment = config.sweep_z_increment;
     sweep_WP_error = config.sweep_WP_error;
 
   }else{
@@ -65,14 +65,14 @@ void MissionManager::configure(){
   nh_.param("max_height", max_height, 2.0);
   ROS_INFO("Max height: %2.2f", max_height); // maximum height for the autonomous behaviours
 
-  nh_.param("sweep_y_size", sweep_y_size, 3.0);
-  ROS_INFO("Sweep_y_size: %2.2f", sweep_y_size);
+  // nh_.param("sweep_y_size", sweep_y_size, 3.0);
+  // ROS_INFO("Sweep_y_size: %2.2f", sweep_y_size);
 
-  nh_.param("sweep_z_size", sweep_z_size, 3.0);
-  ROS_INFO("Sweep_z_size: %2.2f", sweep_z_size);
+  // nh_.param("sweep_z_size", sweep_z_size, 3.0);
+  // ROS_INFO("Sweep_z_size: %2.2f", sweep_z_size);
 
-  nh_.param("sweep_z_increment", sweep_z_increment, 1.0);
-  ROS_INFO("Sweep_z_increment: %2.2f", sweep_z_increment);
+  // nh_.param("sweep_z_increment", sweep_z_increment, 1.0);
+  // ROS_INFO("Sweep_z_increment: %2.2f", sweep_z_increment);
 
   nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
   ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
@@ -91,10 +91,17 @@ void MissionManager::configure(){
   WP_x = WP_y = WP_z = 0.0;
   initial_yaw_sweep = 0.0;
   final_z_sweep = 0.0;
-  sweep_status = 0; //0--> go right
+  sweep_state = 0;  //0--> go right
                     //1--> go down
                     //2--> go left
                     //3--> go down
+
+  sweep_status = 0; //0-->No sweeping in course
+                    //1-->Sweeping
+                    //2-->Paused
+  nh_.setParam("sweep_status", sweep_status);
+
+  sweep_y_size = sweep_z_size = sweep_z_increment = 0.0;
 
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
@@ -118,9 +125,9 @@ void MissionManager::checkParameters(){
 
   min_height = abs(min_height);
   max_height = abs(max_height);
-  sweep_y_size = abs(sweep_y_size);
-  sweep_z_size = abs(sweep_z_size);
-  sweep_z_increment = abs(sweep_z_increment);
+  // sweep_y_size = abs(sweep_y_size);
+  // sweep_z_size = abs(sweep_z_size);
+  // sweep_z_increment = abs(sweep_z_increment);
   sweep_WP_error = abs(sweep_WP_error);
 
   if(min_height < 0.5){
@@ -170,6 +177,10 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(request_control.response.allowed){ // start the sweep
 
+    sweep_y_size = req.sweep_y_size;
+    sweep_z_size = req.sweep_z_size;
+    sweep_z_increment = req.sweep_z_increment;
+
     position_control_granted = true;
 
     //the sweep starts from the top left corner
@@ -189,14 +200,95 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     initial_yaw_sweep = current_yaw;
     final_z_sweep = current_z - sweep_z_size;
 
-    performing_sweep = true;    
+    performing_sweep = true;  
+    sweep_status = 1;
+    nh_.setParam("sweep_status", sweep_status);
   
-    sweep_status = 0;
+    sweep_state = 0;
     ROS_WARN("Starting new sweep");
 
   }else{ // there is probably another mission in progress
 
     ROS_WARN("New sweep not allowed");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res){
+
+  if(performing_sweep){
+
+    performing_sweep = false;
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+    ROS_WARN("Sweeping stopped");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
+
+  }else{
+
+    ROS_WARN("No sweeping in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res){
+
+  if(performing_sweep){
+
+    performing_sweep = false;
+    sweep_status = 2;
+    nh_.setParam("sweep_status", sweep_status);
+    ROS_WARN("Sweeping paused");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
+
+  }else{
+
+    ROS_WARN("No sweeping in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res){
+
+  if(sweep_status == 2){ // the last sweeping is paused
+
+    // request control to the Safety Manager
+    srv_mav_behaviours::RequestControl request_control;
+    request_control_client_.call(request_control);
+
+    if(request_control.response.allowed){ // resume the sweep
+
+      position_control_granted = true;
+
+      performing_sweep = true;  
+      sweep_status = 1;
+      nh_.setParam("sweep_status", sweep_status);
+    
+      ROS_WARN("Resuming sweep");
+
+    }else{ // there is probably another mission in progress
+
+      ROS_WARN("Resume sweep not allowed");
+
+    }
+
+  }else{
+
+    ROS_WARN("No sweeping in pause");
 
   }
 
@@ -227,79 +319,18 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   if (!position_control_granted){//stop all the behaviours
 
-    performing_sweep = false;
+    if(performing_sweep){//pause the sweeping in course (if any)
+      sweep_status = 2;
+      nh_.setParam("sweep_status", sweep_status);
+      ROS_WARN("Sweeping paused");
+    }
 
+    performing_sweep = false;
   }
 
   if(performing_sweep){
 
-    double errorX = WP_x-current_x;
-    double errorY = WP_y-current_y;
-    double errorZ = WP_z-current_z;
-
-    double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
-
-    if(errorWP < sweep_WP_error){ // compute the next WP
-
-      sweep_status ++;
-      sweep_status = sweep_status%4;
-
-      if((sweep_status == 1) || (sweep_status == 3)){ // go down
-
-        double aux_WP_z = WP_z - sweep_z_increment;
-
-        if(aux_WP_z < min_height){
-
-          ROS_WARN("Flying too low to keep on sweeping");
-
-          performing_sweep = false;
-
-        }else if(aux_WP_z < final_z_sweep){
-
-          ROS_WARN("Sweep finised");
-
-          performing_sweep = false;
-
-        }else{
-
-          WP_z = aux_WP_z; // we update WPz only if it is reachable 
-
-        }
-
-      }else{ // go to the right or to the left
-
-        double robot_incr_y;
-
-        if(sweep_status == 0){ // go to the right
-
-          robot_incr_y = -sweep_y_size;
-
-        }else{ //go to the left (sweep_status == 2)
-
-          robot_incr_y = sweep_y_size;
-        }
-
-        //rotate the increment to the world frame using the initial estimated yaw
-        tf::Vector3 robot_incr(0.0, robot_incr_y, 0.0);
-        tf::Matrix3x3 m_rot;
-        m_rot.setRPY(0, 0, initial_yaw_sweep);
-        tf::Vector3 world_incr = m_rot * robot_incr;
-
-        WP_x = WP_x + world_incr.getX();
-        WP_y = WP_y + world_incr.getY();
-
-      }
-
-    } 
-
-    if(!performing_sweep){ // the sweeping has been stopped now
-
-      // give up control to the Safety Manager
-      srv_mav_behaviours::GiveUpControl give_up_control;
-      give_up_control_client_.call(give_up_control);
-      position_control_granted = false;
-
-    }
+    performSweep();
 
   }
 
@@ -339,6 +370,82 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         position_controllers_enabled = false;
       }
     }
+
+  }
+
+}
+
+void MissionManager::performSweep(){
+
+  double errorX = WP_x-current_x;
+  double errorY = WP_y-current_y;
+  double errorZ = WP_z-current_z;
+
+  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+
+  if(errorWP < sweep_WP_error){ // compute the next WP
+
+    sweep_state ++;
+    sweep_state = sweep_state%4;
+
+    if((sweep_state == 1) || (sweep_state == 3)){ // go down
+
+      double aux_WP_z = WP_z - sweep_z_increment;
+
+      if(aux_WP_z < min_height){
+
+        ROS_WARN("Flying too low to keep on sweeping");
+
+        performing_sweep = false;
+        sweep_status = 0;
+        nh_.setParam("sweep_status", sweep_status);
+
+      }else if(aux_WP_z < final_z_sweep){
+
+        ROS_WARN("Sweep finised");
+
+        performing_sweep = false;
+        sweep_status = 0;
+        nh_.setParam("sweep_status", sweep_status);
+
+      }else{
+
+        WP_z = aux_WP_z; // we update WPz only if it is reachable 
+
+      }
+
+    }else{ // go to the right or to the left
+
+      double robot_incr_y;
+
+      if(sweep_state == 0){ // go to the right
+
+        robot_incr_y = -sweep_y_size;
+
+      }else{ //go to the left (sweep_state == 2)
+
+        robot_incr_y = sweep_y_size;
+      }
+
+      //rotate the increment to the world frame using the initial estimated yaw
+      tf::Vector3 robot_incr(0.0, robot_incr_y, 0.0);
+      tf::Matrix3x3 m_rot;
+      m_rot.setRPY(0, 0, initial_yaw_sweep);
+      tf::Vector3 world_incr = m_rot * robot_incr;
+
+      WP_x = WP_x + world_incr.getX();
+      WP_y = WP_y + world_incr.getY();
+
+    }
+
+  } 
+
+  if(!performing_sweep){ // the sweeping has finished now
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
 
   }
 
