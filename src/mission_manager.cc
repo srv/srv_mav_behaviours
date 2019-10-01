@@ -159,7 +159,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(!odometry_received) return false;
 
-  if(performing_sweep){
+  if(performing_sweep || (sweep_status == 2)){
     ROS_WARN("Sweep already in process!!");
     return false;
   }
@@ -207,7 +207,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     sweep_status = 1;
     nh_.setParam("sweep_status", sweep_status);
   
-    sweep_state = 0;
+    sweep_state = 0; // goint to the right
     ROS_WARN("Starting new sweep");
 
   }else{ // there is probably another mission in progress
@@ -232,6 +232,13 @@ bool MissionManager::stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
     position_control_granted = false;
+
+  }else if(sweep_status == 2){ // the last sweeping is paused
+
+    // performing_sweep is already false
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+    ROS_WARN("Sweeping stopped");
 
   }else{
 
@@ -277,6 +284,36 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
 
       position_control_granted = true;
 
+      //recompute the WP with the current orientation
+
+      if((sweep_state == 0) || (sweep_state == 2)){ // not going down
+
+        double remaining_x = WP_x - current_x;
+        double remaining_y = WP_y - current_y;
+        double sweep_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
+        
+        if(sweep_state == 0){ // go to right
+
+          sweep_y_remaining = -sweep_y_remaining;
+
+        }
+
+        tf::Vector3 robot_incr(0.0, sweep_y_remaining, 0.0); //move to the right
+
+        //rotate the increment to the world frame using the estimated yaw
+        tf::Matrix3x3 m_rot;
+        m_rot.setRPY(0, 0, current_yaw);
+        tf::Vector3 world_incr = m_rot * robot_incr;
+
+        //update the next WP
+        WP_x = current_x + world_incr.getX();
+        WP_y = current_y + world_incr.getY();
+
+      } 
+      
+      // update the inital_yaw_sweep for computing the rest of waypoints
+      initial_yaw_sweep = current_yaw;
+      
       performing_sweep = true;  
       sweep_status = 1;
       nh_.setParam("sweep_status", sweep_status);
