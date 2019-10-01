@@ -76,7 +76,7 @@ class MissionManager {
 
   // Services
   ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
-  ros::ServiceServer start_sweep_srv_;
+  ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::mission_managerConfig &config, uint32_t level);

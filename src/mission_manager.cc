@@ -111,6 +111,9 @@ void MissionManager::configure(){
 
   // Advertising Services
   start_sweep_srv_ = nh_.advertiseService("start_sweep", &MissionManager::startSweep, this);
+  stop_sweep_srv_ = nh_.advertiseService("stop_sweep", &MissionManager::stopSweep, this);
+  pause_sweep_srv_ = nh_.advertiseService("pause_sweep", &MissionManager::pauseSweep, this);
+  resume_sweep_srv_ = nh_.advertiseService("resume_sweep", &MissionManager::resumeSweep, this);
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
