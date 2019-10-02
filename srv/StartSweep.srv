@@ -1,4 +1,4 @@
-float64 sweep_y_size
-float64 sweep_z_size
-float64 sweep_z_increment
+float64 width
+float64 height
+float64 vertical_step
 ---

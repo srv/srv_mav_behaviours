@@ -180,11 +180,12 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(request_control.response.allowed){ // start the sweep
 
-    sweep_y_size = req.sweep_y_size;
-    sweep_z_size = req.sweep_z_size;
-    sweep_z_increment = req.sweep_z_increment;
-
     position_control_granted = true;
+
+    //load the sweeping parameters
+    sweep_y_size = req.width;
+    sweep_z_size = req.height;
+    sweep_z_increment = req.vertical_step;
 
     //the sweep starts from the top left corner
 
