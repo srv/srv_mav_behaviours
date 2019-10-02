@@ -360,12 +360,16 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   if (!position_control_granted){//stop all the behaviours
 
     if(performing_sweep){//pause the sweeping in course (if any)
+
       sweep_status = 2;
       nh_.setParam("sweep_status", sweep_status);
       ROS_WARN("Sweeping paused");
+      performing_sweep = false;
+
     }
 
-    performing_sweep = false;
+    //TODO: stop/pause the rest of behaviours
+
   }
 
   if(performing_sweep){
