@@ -369,6 +369,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   range_pub_.publish(range_front);
 
+  double orientation = getOrientationFront();
+  ROS_INFO("Orientation: %2.2f", orientation);
 
 }
 
@@ -521,6 +523,48 @@ float SafetyManager::getMeanDistanceFront(){
   mean_range = mean_range / num_elem;
 
   return mean_range;
+
+}
+
+double SafetyManager::getOrientationFront(){
+
+  int central_range = laser_num_ranges / 2;
+
+  int initial_range = central_range - half_scans_attenuation;
+  int final_range = central_range + half_scans_attenuation;
+
+  int iter = 0;
+  float sumXY = 0.0;
+  float sumX = 0.0;
+  float sumY = 0.0;
+  float sumXX = 0.0;
+  int num_elem = 0;
+
+  for (int i = initial_range; i <= final_range; i++){
+
+    float range = laser_scan.ranges[i];
+
+    if (!std::isnan(range)){
+
+      float alpha = (half_scans_attenuation-iter) * laser_angle_incr;
+      float x = range*cos(alpha);
+      float y = range*sin(alpha);
+
+      sumXY += x*y;
+      sumX += x;
+      sumY += y;
+      sumXX += x*x;
+      num_elem ++;
+
+    }
+
+    iter ++;
+
+  }
+
+  double m = (num_elem*sumXY - sumX*sumY) / (num_elem*sumXX - sumX*sumX);
+
+  return atan2(m,1.0);
 
 }
 

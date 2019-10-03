@@ -106,6 +106,7 @@ class SafetyManager {
   void attenuateZMaxHeight(double & z_vel);
   void computeZAttraction(double & vz_att);
   float getMeanDistanceFront();
+  double getOrientationFront();
 
 };
 
