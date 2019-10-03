@@ -546,7 +546,7 @@ double SafetyManager::getOrientationFront(){
 
     if (!std::isnan(range)){
 
-      float alpha = (half_scans_attenuation-iter) * laser_angle_incr;
+      float alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
       float x = range*cos(alpha);
       float y = range*sin(alpha);
 
@@ -564,7 +564,14 @@ double SafetyManager::getOrientationFront(){
 
   double m = (num_elem*sumXY - sumX*sumY) / (num_elem*sumXX - sumX*sumX);
 
-  return atan2(m,1.0);
+  double wall_ori = atan2(m,1.0);
+
+  double mav_ori_deg = (wall_ori * 180.0 / M_PI) - 90.0;
+
+  int mav_ori_int = (int)mav_ori_deg;
+  double mav_ori_deci = mav_ori_deg - mav_ori_int;
+
+  return (double)(mav_ori_int % 180) + mav_ori_deci;
 
 }
 
