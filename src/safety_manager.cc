@@ -566,12 +566,20 @@ double SafetyManager::getOrientationFront(){
 
   double wall_ori = atan2(m,1.0);
 
-  double mav_ori_deg = (wall_ori * 180.0 / M_PI) - 90.0;
+  double wall_ori_abs = abs(wall_ori);
+  double mav_ori = M_PI_2 - wall_ori_abs;
 
-  int mav_ori_int = (int)mav_ori_deg;
-  double mav_ori_deci = mav_ori_deg - mav_ori_int;
+  if (wall_ori < 0.0) mav_ori = -mav_ori;
 
-  return (double)(mav_ori_int % 180) + mav_ori_deci;
+  return mav_ori * 180.0 / M_PI;
+
+  //double mav_ori_deg = (wall_ori * 180.0 / M_PI) - 90.0;
+
+  //int mav_ori_int = (int)mav_ori_deg;
+  //double mav_ori_deci = mav_ori_deg - mav_ori_int;
+
+  //return (double)(mav_ori_int % 180) + mav_ori_deci;
+  //return wall_ori * 180.0 / M_PI;
 
 }
 
