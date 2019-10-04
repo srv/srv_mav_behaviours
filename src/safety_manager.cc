@@ -371,7 +371,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   // compute and publish the orientation regarding the front wall
 
-  std_msgs::Float32Ptr orientation_front(new std_msgs::Float32Ptr);
+  std_msgs::Float32Ptr orientation_front(new std_msgs::Float32);
   orientation_front->data = getOrientationFront();
   orientation_pub_.publish(orientation_front);
 
