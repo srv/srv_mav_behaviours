@@ -115,6 +115,7 @@ void SafetyManager::configure(){
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
   laser_pub_ = nh_.advertise<sensor_msgs::LaserScan>("laser_obstacles", 1);
   range_pub_ = nh_.advertise<sensor_msgs::Range>("mean_distance_front", 1);
+  orientation_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
@@ -366,11 +367,13 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_front->max_range = laser_scan.range_max;
   range_front->field_of_view = front_distance_fov;
   range_front->range = getMeanDistanceFront();
-
   range_pub_.publish(range_front);
 
-  double orientation = getOrientationFront();
-  ROS_INFO("Orientation: %2.2f", orientation);
+  // compute and publish the orientation regarding the front wall
+
+  std_msgs::Float32Ptr orientation_front(new std_msgs::Float32Ptr);
+  orientation_front->data = getOrientationFront();
+  orientation_pub_.publish(orientation_front);
 
 }
 
@@ -572,14 +575,6 @@ double SafetyManager::getOrientationFront(){
   if (wall_ori < 0.0) mav_ori = -mav_ori;
 
   return mav_ori * 180.0 / M_PI;
-
-  //double mav_ori_deg = (wall_ori * 180.0 / M_PI) - 90.0;
-
-  //int mav_ori_int = (int)mav_ori_deg;
-  //double mav_ori_deci = mav_ori_deg - mav_ori_int;
-
-  //return (double)(mav_ori_int % 180) + mav_ori_deci;
-  //return wall_ori * 180.0 / M_PI;
 
 }
 

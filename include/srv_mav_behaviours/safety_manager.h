@@ -25,6 +25,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <srv_mav_msgs/MAVVerticalState.h>
 #include <sensor_msgs/Range.h>
+#include <std_msgs/Float32.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
@@ -51,6 +52,7 @@ class SafetyManager {
   ros::Publisher twist_pub_;
   ros::Publisher laser_pub_;
   ros::Publisher range_pub_;
+  ros::Publisher orientation_pub_;
 
   ros::Timer timer_;
 
