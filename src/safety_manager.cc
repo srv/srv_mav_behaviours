@@ -537,10 +537,11 @@ double SafetyManager::getOrientationFront(){
   int final_range = central_range + half_scans_attenuation;
 
   int iter = 0;
-  float sumXY = 0.0;
-  float sumX = 0.0;
-  float sumY = 0.0;
-  float sumXX = 0.0;
+  float sum_X = 0.0;
+  float sum_Y = 0.0;
+  float sum_XX = 0.0;
+  float sum_YY = 0.0;
+  float sum_XY = 0.0;
   int num_elem = 0;
 
   for (int i = initial_range; i <= final_range; i++){
@@ -553,10 +554,12 @@ double SafetyManager::getOrientationFront(){
       float x = range*cos(alpha);
       float y = range*sin(alpha);
 
-      sumXY += x*y;
-      sumX += x;
-      sumY += y;
-      sumXX += x*x;
+      sum_X += x;
+      sum_Y += y;
+      sum_XX += x*x;
+      sum_YY += y*y;
+      sum_XY += x*y;
+
       num_elem ++;
 
     }
@@ -565,16 +568,28 @@ double SafetyManager::getOrientationFront(){
 
   }
 
-  double m = (num_elem*sumXY - sumX*sumY) / (num_elem*sumXX - sumX*sumX);
+  float sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
+  float sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
+  float sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
 
-  double wall_ori = atan2(m,1.0);
+  bool isHorizontal = sXY == 0 && sXX < sYY;
+  bool isVertical = sXY == 0 && sXX > sYY;
+  bool isIndeterminate = sXY == 0 && sXX == sYY;
+  double slope;
 
-  double wall_ori_abs = abs(wall_ori);
-  double mav_ori = M_PI_2 - wall_ori_abs;
+  if (isHorizontal) slope = 0.0;
+  else slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sYY)) / 2*sXY;
 
-  if (wall_ori < 0.0) mav_ori = -mav_ori;
+  double wall_ori = atan2(slope,1.0);
 
-  return mav_ori * 180.0 / M_PI;
+  // double wall_ori_abs = abs(wall_ori);
+  // double mav_ori = M_PI_2 - wall_ori_abs;
+
+  // if (wall_ori < 0.0) mav_ori = -mav_ori;
+
+  // return mav_ori * 180.0 / M_PI;
+
+  return wall_ori;
 
 }
 
