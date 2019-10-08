@@ -575,32 +575,31 @@ double SafetyManager::getOrientationFront(){
   bool isHorizontal = sXY == 0 && sXX < sYY;
   bool isVertical = sXY == 0 && sXX > sYY;
   bool isIndeterminate = sXY == 0 && sXX == sYY;
-  double slope;
-
+  double mav_ori;
 
   if (isHorizontal){
 
-    slope = 0.0;
+    mav_ori = 0.0;
     ROS_INFO("wall horizontal");
 
   }else if (isVertical){
 
     ROS_INFO("wall vertical");
-    slope = 0.0;
+    mav_ori = M_PI_2;
 
   }else if (isIndeterminate){
 
     ROS_INFO("wall indeterminate");
-    slope = 0.0;
+    mav_ori = M_PI_2; // not real
 
   }else{
 
-    // slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sXY)) / 2*sXY;
     double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
-    slope = -sXY/(sXX-lambda);
-  }
+    double slope = -sXY/(sXX-lambda);
+    mav_ori = -atan2(1.0, slope);
+    if (mav_ori < -M_PI_2) mav_ori += M_PI;
 
-  double mav_ori = atan2(1.0, slope);
+  }
 
   return mav_ori * 180.0 / M_PI;
 
