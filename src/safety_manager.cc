@@ -588,7 +588,7 @@ double SafetyManager::getOrientationFront(){
   }else if(isIndeterminate){
     ROS_INFO("indeterminate");
     slope = 0.0;
-  }else slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sYY)) / 2*sXY;
+  }else slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sXY)) / 2*sXY;
 
   ROS_INFO("slope=%2.2f, %2.2f", slope, (sYY-sXX)*(sYY-sXX)+4*sXY*sYY);
 
