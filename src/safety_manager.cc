@@ -537,22 +537,22 @@ double SafetyManager::getOrientationFront(){
   int final_range = central_range + half_scans_attenuation;
 
   int iter = 0;
-  float sum_X = 0.0;
-  float sum_Y = 0.0;
-  float sum_XX = 0.0;
-  float sum_YY = 0.0;
-  float sum_XY = 0.0;
+  double sum_X = 0.0;
+  double sum_Y = 0.0;
+  double sum_XX = 0.0;
+  double sum_YY = 0.0;
+  double sum_XY = 0.0;
   int num_elem = 0;
 
   for (int i = initial_range; i <= final_range; i++){
 
-    float range = laser_scan.ranges[i];
+    double range = laser_scan.ranges[i];
 
     if (!std::isnan(range)){
 
-      float alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-      float x = range*cos(alpha);
-      float y = range*sin(alpha);
+      double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+      double x = range*cos(alpha);
+      double y = range*sin(alpha);
 
       sum_X += x;
       sum_Y += y;
@@ -568,9 +568,9 @@ double SafetyManager::getOrientationFront(){
 
   }
 
-  float sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
-  float sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
-  float sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
+  double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
+  double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
+  double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
 
   bool isHorizontal = sXY == 0 && sXX < sYY;
   bool isVertical = sXY == 0 && sXX > sYY;
@@ -595,11 +595,12 @@ double SafetyManager::getOrientationFront(){
 
   }else{
 
-    slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sXY)) / 2*sXY;
-
+    // slope = (sYY-sXX+sqrt((sYY-sXX)*(sYY-sXX)+4*sXY*sXY)) / 2*sXY;
+    double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
+    slope = -sXY/(sXX-lambda);
   }
 
-  double mav_ori = atan2(slope,1.0);
+  double mav_ori = atan2(1.0, slope);
 
   return mav_ori * 180.0 / M_PI;
 
