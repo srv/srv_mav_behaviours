@@ -160,6 +160,21 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     return false;
   }
 
+  //load the sweeping parameters
+  sweep_y_size = req.width;
+  sweep_z_size = req.height;
+  sweep_y_increment = req.horizontal_step;
+  sweep_z_increment = req.vertical_step;
+
+  if((sweep_y_size <= 0.0) || (sweep_z_size <= 0.0)){
+
+    ROS_WARN("Sweeping dimensions must be greater than 0");
+    return false;
+
+  }
+  if((sweep_y_increment > sweep_y_size) || (sweep_y_increment == 0.0)) sweep_y_increment = sweep_y_size;
+  if((sweep_z_increment > sweep_z_size) || (sweep_z_increment == 0.0)) sweep_z_increment = sweep_z_size;
+
   // request control to the Safety Manager
   srv_mav_behaviours::RequestControl request_control;
   request_control_client_.call(request_control);
@@ -167,15 +182,6 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
   if(request_control.response.allowed){ // start the sweep
 
     position_control_granted = true;
-
-    //load the sweeping parameters
-    sweep_y_size = req.width;
-    sweep_z_size = req.height;
-    sweep_y_increment = req.horizontal_step;
-    sweep_z_increment = req.vertical_step;
-
-    if(sweep_y_increment > sweep_y_size) sweep_y_increment = sweep_y_size;
-    if(sweep_z_increment > sweep_z_size) sweep_z_increment = sweep_z_size;
 
     //the sweep starts from the top left corner
 
