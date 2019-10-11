@@ -58,7 +58,7 @@ class MissionManager {
 
   // Params
   double min_height, max_height;
-  double sweep_y_size, sweep_z_size, sweep_z_increment, sweep_WP_error;
+  double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment, sweep_WP_error;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;
@@ -70,6 +70,7 @@ class MissionManager {
   bool performing_sweep;
   double WP_x, WP_y, WP_z;
   double initial_yaw_sweep;
+  double total_y_displacement;
   double final_z_sweep;
   int sweep_state;
   int sweep_status;

@@ -39,9 +39,6 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
 
   if(!performing_sweep){
 
-    // sweep_y_size = config.sweep_y_size;
-    // sweep_z_size = config.sweep_z_size;
-    // sweep_z_increment = config.sweep_z_increment;
     sweep_WP_error = config.sweep_WP_error;
 
   }else{
@@ -65,15 +62,6 @@ void MissionManager::configure(){
   nh_.param("max_height", max_height, 2.0);
   ROS_INFO("Max height: %2.2f", max_height); // maximum height for the autonomous behaviours
 
-  // nh_.param("sweep_y_size", sweep_y_size, 3.0);
-  // ROS_INFO("Sweep_y_size: %2.2f", sweep_y_size);
-
-  // nh_.param("sweep_z_size", sweep_z_size, 3.0);
-  // ROS_INFO("Sweep_z_size: %2.2f", sweep_z_size);
-
-  // nh_.param("sweep_z_increment", sweep_z_increment, 1.0);
-  // ROS_INFO("Sweep_z_increment: %2.2f", sweep_z_increment);
-
   nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
   ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
 
@@ -90,6 +78,7 @@ void MissionManager::configure(){
 
   WP_x = WP_y = WP_z = 0.0;
   initial_yaw_sweep = 0.0;
+  total_y_displacement = 0.0;
   final_z_sweep = 0.0;
   sweep_state = 0;  //0--> go right
                     //1--> go down
@@ -101,7 +90,7 @@ void MissionManager::configure(){
                     //2-->Paused
   nh_.setParam("sweep_status", sweep_status);
 
-  sweep_y_size = sweep_z_size = sweep_z_increment = 0.0;
+  sweep_y_size = sweep_z_size = sweep_y_increment = sweep_z_increment = 0.0;
 
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
@@ -128,9 +117,6 @@ void MissionManager::checkParameters(){
 
   min_height = abs(min_height);
   max_height = abs(max_height);
-  // sweep_y_size = abs(sweep_y_size);
-  // sweep_z_size = abs(sweep_z_size);
-  // sweep_z_increment = abs(sweep_z_increment);
   sweep_WP_error = abs(sweep_WP_error);
 
   if(min_height < 0.5){
@@ -185,12 +171,16 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     //load the sweeping parameters
     sweep_y_size = req.width;
     sweep_z_size = req.height;
+    sweep_y_increment = req.horizontal_step;
     sweep_z_increment = req.vertical_step;
+
+    if(sweep_y_increment > sweep_y_size) sweep_y_increment = sweep_y_size;
+    if(sweep_z_increment > sweep_z_size) sweep_z_increment = sweep_z_size;
 
     //the sweep starts from the top left corner
 
     //compute the first displacement
-    tf::Vector3 robot_incr(0.0, -sweep_y_size, 0.0); //move to the right
+    tf::Vector3 robot_incr(0.0, -sweep_y_increment, 0.0); //move to the right
 
      //rotate the increment to the world frame using the estimated yaw
     tf::Matrix3x3 m_rot;
@@ -202,13 +192,14 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     WP_y = current_y + world_incr.getY();
     WP_z = current_z;
     initial_yaw_sweep = current_yaw;
+    total_y_displacement = 0.0;
     final_z_sweep = current_z - sweep_z_size;
 
     performing_sweep = true;  
     sweep_status = 1;
     nh_.setParam("sweep_status", sweep_status);
   
-    sweep_state = 0; // goint to the right
+    sweep_state = 0; // going to the right
     ROS_WARN("Starting new sweep");
 
   }else{ // there is probably another mission in progress
@@ -428,12 +419,32 @@ void MissionManager::performSweep(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < sweep_WP_error){ // compute the next WP
+  if(errorWP < sweep_WP_error){ // the WP has been reached
 
-    sweep_state ++;
-    sweep_state = sweep_state%4;
+    // update the sweep_state if necessary
 
-    if((sweep_state == 1) || (sweep_state == 3)){ // go down
+    if((sweep_state == 0) || (sweep_state == 2)){ // going to the right or to the left
+
+      total_y_displacement += sweep_y_increment;
+
+      if (total_y_displacement >= sweep_y_size){ // lateral movement finished
+
+        sweep_state ++;
+        sweep_state = sweep_state%4;
+        total_y_displacement = 0.0;
+
+      } //else: keep going in that direction
+
+    } else{ // going down
+
+      sweep_state ++;
+      sweep_state = sweep_state%4;
+
+    }
+
+    // compute the next WP
+
+    if((sweep_state == 1) || (sweep_state == 3)){ // lets go down
 
       double aux_WP_z = WP_z - sweep_z_increment;
 
@@ -459,17 +470,17 @@ void MissionManager::performSweep(){
 
       }
 
-    }else{ // go to the right or to the left
+    }else{ //lets go to the right or to the left
 
       double robot_incr_y;
 
-      if(sweep_state == 0){ // go to the right
+      if(sweep_state == 0){ // lets go to the right
 
-        robot_incr_y = -sweep_y_size;
+        robot_incr_y = -sweep_y_increment;
 
-      }else{ //go to the left (sweep_state == 2)
+      }else{ // lets go to the left (sweep_state == 2)
 
-        robot_incr_y = sweep_y_size;
+        robot_incr_y = sweep_y_increment;
       }
 
       //rotate the increment to the world frame using the initial estimated yaw

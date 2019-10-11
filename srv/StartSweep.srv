@@ -1,4 +1,5 @@
 float64 width
 float64 height
+float64 horizontal_step
 float64 vertical_step
 ---
