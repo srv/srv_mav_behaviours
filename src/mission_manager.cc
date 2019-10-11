@@ -454,17 +454,17 @@ void MissionManager::performSweep(){
 
       double aux_WP_z = WP_z - sweep_z_increment;
 
-      if(aux_WP_z < min_height){
+      if(aux_WP_z < final_z_sweep){
 
-        ROS_WARN("Flying too low to keep on sweeping");
+        ROS_WARN("Sweep finised");
 
         performing_sweep = false;
         sweep_status = 0;
         nh_.setParam("sweep_status", sweep_status);
 
-      }else if(aux_WP_z < final_z_sweep){
+      }else if(aux_WP_z < min_height){
 
-        ROS_WARN("Sweep finised");
+        ROS_WARN("Flying too low to keep on sweeping");
 
         performing_sweep = false;
         sweep_status = 0;
