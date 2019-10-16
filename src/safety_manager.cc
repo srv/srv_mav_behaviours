@@ -237,7 +237,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
     float range = laser_scan_msg->ranges[i];
 
-    if(!std::isnan(range) && !std::isinf(range)){
+    if(std::isfinite(range)){
 
       mean_range += range;
       good_ranges ++;
@@ -246,7 +246,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
   }
 
-  if(!std::isnan(laser_scan_msg->ranges[laser_half_filter]) && !std::isinf(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
+  if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
 
     laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
 
@@ -258,16 +258,16 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
     float newRange = laser_scan_msg->ranges[i+laser_half_filter];
     float range = laser_scan_msg->ranges[i];
 
-    if(!std::isnan(oldRange) && !std::isinf(oldRange)){
+    if(std::isfinite(oldRange)){
       mean_range -= oldRange;
       good_ranges --;
     }
 
-    if(!std::isnan(newRange) && !std::isinf(newRange)){
+    if(std::isfinite(newRange)){
       mean_range += newRange;
       good_ranges ++;
     }
-    if(!std::isnan(range) && !std::isinf(range)) laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
+    if(std::isfinite(range)) laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
 
   }
 
@@ -392,7 +392,7 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
 
     float range = laser_scan.ranges[i];
 
-    if (!std::isnan(range) && !std::isinf(range)){
+    if (std::isfinite(range)){
 
       if (range < min_range){
 
@@ -432,7 +432,7 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
     float range = laser_scan.ranges[i];
 
-    if (!std::isnan(range) && !std::isinf(range)){
+    if (std::isfinite(range)){
 
       if(range < min_distance_wall){
 
@@ -514,7 +514,7 @@ float SafetyManager::getMeanDistanceFront(){
 
     float range = laser_scan.ranges[i];
 
-    if (!std::isnan(range) && !std::isinf(range)){
+    if (std::isfinite(range)){
 
       mean_range += range;
       num_elem ++;
@@ -548,7 +548,7 @@ double SafetyManager::getOrientationFront(){
 
     double range = laser_scan.ranges[i];
 
-    if (!std::isnan(range) && !std::isinf(range)){
+    if (std::isfinite(range)){
 
       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
       double x = range*cos(alpha);
