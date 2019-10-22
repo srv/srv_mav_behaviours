@@ -46,6 +46,10 @@ void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config
   scan_degrees_for_attenuation = config.scan_degrees_for_attenuation; // angular sector of the laser scan considered when computing the attenuation (in degrees)
   K_wall_repulsion = config.K_wall_repulsion; // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
 
+  min_distance_ceiling = config.min_distance_ceiling; // minimum distance allowed from the ceiling
+  attenuation_distance_ceiling = config.attenuation_distance_ceiling; // distance from the ceiling in meters to start attenuating the speed
+  K_ceiling_repulsion = config.K_ceiling_repulsion; // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
+
   max_height = config.max_height;
   attenuation_max_height = config.attenuation_max_height; // height in meters to start attenuating the vertical speed
   K_max_height_attraction = config. K_max_height_attraction; //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
@@ -84,16 +88,25 @@ void SafetyManager::configure(){
   ROS_INFO("Attenuation_distance_wall: %2.2f", attenuation_distance_wall);
 
   nh_.param("scan_degrees_for_attenuation", scan_degrees_for_attenuation, 40.0); // angular sector of the laser scan considered when computing the attenuation (in degrees)
-  ROS_INFO("scan_degrees_for_attenuation: %2.2f", scan_degrees_for_attenuation);
+  ROS_INFO("Scan_degrees_for_attenuation: %2.2f", scan_degrees_for_attenuation);
 
   nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
+
+  nh_.param("min_distance_ceiling", min_distance_ceiling, 2.0); // minimum distance allowed from the ceiling
+  ROS_INFO("Min_distance_ceiling: %2.2f", min_distance_ceiling);
+
+  nh_.param("K_ceiling_repulsion", K_ceiling_repulsion, 1.0); // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
+  ROS_INFO("K_ceiling_repulsion: %2.2f", K_ceiling_repulsion);
+
+  nh_.param("attenuation_distance_ceiling", attenuation_distance_ceiling, 3.0); // distance from the ceiling in meters to start attenuating the speed
+  ROS_INFO("Attenuation_distance_ceiling: %2.2f", attenuation_distance_ceiling);
 
   nh_.param("max_height", max_height, 4.0);
   ROS_INFO("Max_height: %2.2f", max_height);
 
   nh_.param("attenuation_max_height", attenuation_max_height, 3.0); // height in meters to start attenuating the positive vertical speed
-  ROS_INFO("attenuation_max_height: %2.2f", attenuation_max_height);
+  ROS_INFO("Attenuation_max_height: %2.2f", attenuation_max_height);
 
   nh_.param("K_max_height_attraction", K_max_height_attraction, 1.0);
   ROS_INFO("K_max_height_attraction: %2.2f", K_max_height_attraction); //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
@@ -104,6 +117,7 @@ void SafetyManager::configure(){
   position_ctrl_vel_received = false;
   laser_scan_received = false;
   height_received = false;
+  distance_ceiling_received = false;
 
   front_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
 
@@ -122,6 +136,7 @@ void SafetyManager::configure(){
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
   laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
+  ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
 
   // Advertising Services
   request_control_srv_ = nh_.advertiseService("request_control", &SafetyManager::requestControl, this);
@@ -142,6 +157,10 @@ void SafetyManager::checkParameters(){
   attenuation_distance_wall = abs(attenuation_distance_wall);
   K_wall_repulsion = abs(K_wall_repulsion);
 
+  min_distance_ceiling = abs(min_distance_ceiling);
+  attenuation_distance_ceiling = abs(attenuation_distance_ceiling);
+  K_ceiling_repulsion = abs(K_ceiling_repulsion);
+
   max_height = abs(max_height);
   attenuation_max_height = abs(attenuation_max_height);
   K_max_height_attraction = abs(K_max_height_attraction);
@@ -150,6 +169,12 @@ void SafetyManager::checkParameters(){
     attenuation_distance_wall = min_distance_wall + 1;
     ROS_WARN("attenuation_distance_wall must be larger than min_distance_wall");
     ROS_WARN("attenuation_distance_wall set to %2.2f", attenuation_distance_wall);
+  }
+
+  if(attenuation_distance_ceiling <= min_distance_ceiling){
+    attenuation_distance_ceiling = min_distance_ceiling + 1;
+    ROS_WARN("attenuation_distance_ceiling must be larger than min_distance_ceiling");
+    ROS_WARN("attenuation_distance_ceiling set to %2.2f", attenuation_distance_ceiling);
   }
 
   if(max_height < 2.0){
@@ -284,9 +309,16 @@ void SafetyManager::heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& he
 
 }
 
+void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceiling_distance_msg){
+
+  distance_ceiling = ceiling_distance_msg->range;
+  distance_ceiling_received = true;
+
+}
+
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(desired_vel_received && laser_scan_received && height_received)) return;
+  if(!(desired_vel_received && laser_scan_received && height_received && distance_ceiling_received)) return;
 
   // get the desired command
 
@@ -320,12 +352,19 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
 
-  //attenuate the desired command in Z with the proximity to the maximum height allowed
+  // attenuate the desired command in Z with the proximity to the ceiling
+  attenuateZProximity(desired_vz);
+
+  // attenuate the desired command in Z with the proximity to the maximum height allowed
   attenuateZMaxHeight(desired_vz);
 
   // compute the repulsions from the surrounding obstacles
   double vx_rep, vy_rep;
   computeXYRepulsion(vx_rep, vy_rep);
+
+  // compute the repulsions from the ceiling
+  double vz_rep;
+  computeZRepulsion(vz_rep);
 
   // compute the attraction to the ground when trespassing the maximum height allowed
   double vz_att;
@@ -335,16 +374,18 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   double final_vx, final_vy, final_vz, final_vyaw;
   final_vx = desired_vx + vx_rep;
   final_vy = desired_vy + vy_rep;
-  final_vz = desired_vz + vz_att;
+  final_vz = desired_vz + vz_rep + vz_att;
   final_vyaw = desired_vyaw;
 
   // limit with the maximum speed allowed
-  if (final_vx > max_speed_xy) final_vx = max_speed_xy;
-  else if (final_vx < -max_speed_xy) final_vx = -max_speed_xy;
 
-  if (final_vy > max_speed_xy) final_vy = max_speed_xy;
-  else if (final_vy < -max_speed_xy) final_vy = -max_speed_xy;
+  double final_vxy = sqrt(final_vx*final_vx + final_vy*final_vy);
+  if (final_vxy > max_speed_xy){
+    
+    final_vx = (final_vx / final_vxy) * max_speed_xy;
+    final_vy = (final_vy / final_vxy) * max_speed_xy;
 
+  }
   if (final_vz > max_speed_z) final_vz = max_speed_z;
   else if (final_vz < -max_speed_z) final_vz = -max_speed_z;
 
@@ -465,6 +506,41 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
 }
 
+void SafetyManager::attenuateZProximity(double & z_vel){
+
+  double attenuation = 1.0;
+
+  if(z_vel > 0.0){ // only  if we want to go higher
+
+    // Ds = distance_ceiling - min_distance_ceiling              --> Distance to the stop fence
+    // Dsp = std::max(0.0, Ds)                                   --> Ds must be positive. If Ds is negative the attenuation is complete
+    // Da = attenuation_distance_ceiling - min_distance_ceiling  --> Distance from the attenuation fence to the stop fence
+    // P = Dsp / Da                                              --> Situation between fences given as a proportion. It P > 1 there is no attenuation
+    // attenuation = std::min(1.0, P)
+
+    attenuation = std::min(1.0, std::max(0.0, distance_ceiling - min_distance_ceiling) / (attenuation_distance_ceiling - min_distance_ceiling));
+
+  }
+
+  //attenuation is in [0.0, 1.0]
+
+  z_vel = z_vel * attenuation;
+
+}
+
+void SafetyManager::computeZRepulsion(double & vz_rep){
+
+  vz_rep = 0.0;
+
+  // Dt = max(0.0, min_distance_ceiling-height)  --> Indicates how much we have trespassed the stop fence. A negative value means no attraction.
+  // A = K_ceiling_repulsion * Dt                --> Repulsion speed 
+  // attraction = std::min(max_speed_z, A)       --> Limit repulsion with the maximum speed allowed
+
+  // negative speed to make the MAV descend
+  vz_rep = -std::min(max_speed_z, K_ceiling_repulsion * std::max(0.0, min_distance_ceiling-distance_ceiling));
+
+}
+
 void SafetyManager::attenuateZMaxHeight(double & z_vel){
 
   double attenuation = 1.0;
@@ -493,7 +569,7 @@ void SafetyManager::computeZAttraction(double & vz_att){
 
   // Dt = max(0.0, height-max_height)      --> Indicates how much we have trespassed the maximum height. A negative value means no attraction.
   // A = K_max_height_attraction * Dt      --> Attraction speed 
-  // attraction = std::min(max_speed_z, A) --> Limit repulsion with the maximum speed allowed
+  // attraction = std::min(max_speed_z, A) --> Limit attraction with the maximum speed allowed
 
   // negative speed to make the MAV descend
   vz_att = -std::min(max_speed_z, K_max_height_attraction * std::max(0.0, height-max_height));
