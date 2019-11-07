@@ -21,8 +21,8 @@
 #define INCLUDE_SRV_MAV_BEHAVIOURS_MISSION_MANAGER_H
 
 #include <ros/ros.h>
-#include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf/tf.h>
 
 #include <dynamic_reconfigure/server.h>
@@ -50,7 +50,7 @@ class MissionManager {
   ros::NodeHandle nh_;
 
   ros::Publisher pose_pub_;
-  ros::Subscriber odom_subs_;
+  ros::Subscriber pose_subs_;
 
   ros::Timer timer_;
 
@@ -63,7 +63,7 @@ class MissionManager {
   // Global variables
   double current_x, current_y, current_z, current_yaw;
 
-  bool odometry_received;
+  bool pose_received;
 
   bool position_control_granted, position_controllers_enabled;
 
@@ -89,7 +89,7 @@ class MissionManager {
   bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
 
   // Callbacks
-  void odomClb(const nav_msgs::Odometry::ConstPtr& odo_msg);
+  void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods

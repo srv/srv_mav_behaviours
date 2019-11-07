@@ -67,7 +67,7 @@ void MissionManager::configure(){
 
   checkParameters();
 
-  odometry_received = false;
+  pose_received = false;
 
   position_control_granted = false;
   nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
@@ -96,7 +96,7 @@ void MissionManager::configure(){
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
 
   // Subscribers
-  odom_subs_ = nh_.subscribe("odometry", 1, &MissionManager::odomClb, this);
+  pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
 
   // Advertising Services
   start_sweep_srv_ = nh_.advertiseService("start_sweep", &MissionManager::startSweep, this);
@@ -143,7 +143,7 @@ void MissionManager::checkParameters(){
 
 bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, srv_mav_behaviours::StartSweep::Response &res){
 
-  if(!odometry_received) return false;
+  if(!pose_received) return false;
 
   if(performing_sweep || (sweep_status == 2)){
     ROS_WARN("Sweep already in process!!");
@@ -333,25 +333,25 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
   return true;
 }
 
-void MissionManager::odomClb(const nav_msgs::Odometry::ConstPtr& odo_msg){
+void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
 
-  current_x = odo_msg->pose.pose.position.x;
-  current_y = odo_msg->pose.pose.position.y;
-  current_z = odo_msg->pose.pose.position.z;
+  current_x = pose_msg->pose.pose.position.x;
+  current_y = pose_msg->pose.pose.position.y;
+  current_z = pose_msg->pose.pose.position.z;
 
   tf::Quaternion q;
-  tf::quaternionMsgToTF(odo_msg->pose.pose.orientation, q);
+  tf::quaternionMsgToTF(pose_msg->pose.pose.orientation, q);
   tf::Matrix3x3 m(q);
   double curr_roll, curr_pitch;
   m.getRPY(curr_roll, curr_pitch, current_yaw);
 
-  odometry_received = true;
+  pose_received = true;
 
 }
 
 void MissionManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(odometry_received)) return;
+  if(!(pose_received)) return;
 
   nh_.getParam("position_control_granted", position_control_granted);
 
