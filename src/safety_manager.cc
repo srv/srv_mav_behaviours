@@ -683,7 +683,7 @@ double SafetyManager::getOrientationFront(){
 
 double SafetyManager::getOrientationMain(){
 
-  int offset_range = 10;
+  int offset_range = 1;
 
   int central_range = laser_num_ranges / 2;
 
@@ -709,9 +709,9 @@ double SafetyManager::getOrientationMain(){
       double x2 = range2*cos(alpha);
       double y2 = range2*sin(alpha);
 
-      double beta = atan2((y2-y1),(x2-x1)) * M_PI / 180.0;
+      double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
 
-      angles_v[int(round(beta))]++;
+      angles_v[90+int(round(beta))]++;
 
     }
 
@@ -722,7 +722,10 @@ double SafetyManager::getOrientationMain(){
   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
 
-  return -180.0 + main_angle_pose;
+  int total_samples = angles_v[main_angle_pose] + angles_v[main_angle_pose-1] + angles_v[main_angle_pose+1];
+  double main_angle = -90.0 + double(main_angle_pose * angles_v[main_angle_pose] + (main_angle_pose-1) * angles_v[main_angle_pose-1] + (main_angle_pose+1) * angles_v[main_angle_pose+1]) / total_samples;
+
+  return main_angle;
 
 }
 
