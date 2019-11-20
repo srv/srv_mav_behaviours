@@ -690,7 +690,8 @@ double SafetyManager::getOrientationFrontMean(){
 
 double SafetyManager::getOrientationFrontMain(){
 
-  int offset_range = 1;
+  int offset_range = 10;
+  int range_incr = 1;
 
   int central_range = laser_num_ranges / 2;
 
@@ -701,7 +702,7 @@ double SafetyManager::getOrientationFrontMain(){
 
   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
 
-  for (int i = initial_range; i <= final_range - offset_range; i+=offset_range){
+  for (int i = initial_range; i <= final_range - offset_range; i+=range_incr){
 
     double range1 = laser_scan.ranges[i];
     double range2 = laser_scan.ranges[i+offset_range];
@@ -722,10 +723,10 @@ double SafetyManager::getOrientationFrontMain(){
 
     }
 
-    iter+=offset_range;
+    iter+=range_incr;
 
   }
-
+  
   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
 
