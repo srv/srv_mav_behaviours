@@ -52,7 +52,8 @@ class SafetyManager {
   ros::Publisher twist_pub_;
   ros::Publisher laser_pub_;
   ros::Publisher range_pub_;
-  ros::Publisher orientation_pub_;
+  ros::Publisher main_ori_pub_;
+  ros::Publisher mean_ori_pub_;
 
   ros::Timer timer_;
 
@@ -113,8 +114,8 @@ class SafetyManager {
   void attenuateZMaxHeight(double & z_vel);
   void computeZAttraction(double & vz_att);
   float getMeanDistanceFront();
-  double getOrientationFront();
-  double getOrientationMain();
+  double getOrientationFrontMean();
+  double getOrientationFrontMain();
 
 };
 

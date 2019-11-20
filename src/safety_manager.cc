@@ -129,7 +129,8 @@ void SafetyManager::configure(){
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
   laser_pub_ = nh_.advertise<sensor_msgs::LaserScan>("laser_obstacles", 1);
   range_pub_ = nh_.advertise<sensor_msgs::Range>("mean_distance_front", 1);
-  orientation_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
+  main_ori_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
+  mean_ori_pub_ = nh_.advertise<std_msgs::Float32>("mean_orientation_front", 1);
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
@@ -410,11 +411,17 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_front->range = getMeanDistanceFront();
   range_pub_.publish(range_front);
 
-  // compute and publish the orientation regarding the front wall
+  // compute and publish the main orientation regarding the front wall
 
-  std_msgs::Float32Ptr orientation_front(new std_msgs::Float32);
-  orientation_front->data = getOrientationMain();
-  orientation_pub_.publish(orientation_front);
+  std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
+  main_ori_front->data = getOrientationFrontMain();
+  main_ori_pub_.publish(main_ori_front);
+
+  // compute and publish the mean orientation regarding the front wall
+
+  std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
+  mean_ori_front->data = getOrientationFrontMean();
+  mean_ori_pub_.publish(mean_ori_front);
 
 }
 
@@ -605,7 +612,7 @@ float SafetyManager::getMeanDistanceFront(){
 
 }
 
-double SafetyManager::getOrientationFront(){
+double SafetyManager::getOrientationFrontMean(){
 
   int central_range = laser_num_ranges / 2;
 
@@ -681,7 +688,7 @@ double SafetyManager::getOrientationFront(){
 
 }
 
-double SafetyManager::getOrientationMain(){
+double SafetyManager::getOrientationFrontMain(){
 
   int offset_range = 1;
 
