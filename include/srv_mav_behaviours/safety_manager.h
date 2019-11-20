@@ -114,6 +114,7 @@ class SafetyManager {
   void computeZAttraction(double & vz_att);
   float getMeanDistanceFront();
   double getOrientationFront();
+  double getOrientationMain();
 
 };
 

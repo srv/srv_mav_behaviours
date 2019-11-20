@@ -413,7 +413,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // compute and publish the orientation regarding the front wall
 
   std_msgs::Float32Ptr orientation_front(new std_msgs::Float32);
-  orientation_front->data = getOrientationFront();
+  orientation_front->data = getOrientationMain();
   orientation_pub_.publish(orientation_front);
 
 }
@@ -678,6 +678,51 @@ double SafetyManager::getOrientationFront(){
   }
 
   return mav_ori * 180.0 / M_PI;
+
+}
+
+double SafetyManager::getOrientationMain(){
+
+  int offset_range = 10;
+
+  int central_range = laser_num_ranges / 2;
+
+  int initial_range = central_range - half_scans_attenuation;
+  int final_range = central_range + half_scans_attenuation;
+
+  int iter = 0;
+
+  std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
+
+  for (int i = initial_range; i <= final_range - offset_range; i+=offset_range){
+
+    double range1 = laser_scan.ranges[i];
+    double range2 = laser_scan.ranges[i+offset_range];
+
+    if (std::isfinite(range1) && (std::isfinite(range2))){
+
+      double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+      double x1 = range1*cos(alpha);
+      double y1 = range1*sin(alpha);
+
+      alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
+      double x2 = range2*cos(alpha);
+      double y2 = range2*sin(alpha);
+
+      double beta = atan2((y2-y1),(x2-x1)) * M_PI / 180.0;
+
+      angles_v[int(round(beta))]++;
+
+    }
+
+    iter ++;
+
+  }
+
+  std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
+  int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
+
+  return -180.0 + main_angle_pose;
 
 }
 
