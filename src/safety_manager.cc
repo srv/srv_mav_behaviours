@@ -715,7 +715,7 @@ double SafetyManager::getOrientationMain(){
 
     }
 
-    iter ++;
+    iter+=offset_range;
 
   }
 
