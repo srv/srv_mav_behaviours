@@ -730,8 +730,20 @@ double SafetyManager::getOrientationFrontMain(){
   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
 
-  int total_samples = angles_v[main_angle_pose] + angles_v[main_angle_pose-1] + angles_v[main_angle_pose+1];
-  double main_angle = -90.0 + double(main_angle_pose * angles_v[main_angle_pose] + (main_angle_pose-1) * angles_v[main_angle_pose-1] + (main_angle_pose+1) * angles_v[main_angle_pose+1]) / total_samples;
+  // filter the output considering the neighboring bins
+  int total_samples = 0;
+  int accumulated = 0;
+  int filter_half_size = 3;
+  for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
+      if ((i >=0) && (i <=180)){
+          total_samples += angles_v[i];
+          accumulated += i*angles_v[i];
+      }
+  }
+  double main_angle = -90.0 + double(accumulated) / total_samples;
+
+  // int total_samples = angles_v[main_angle_pose] + angles_v[main_angle_pose-1] + angles_v[main_angle_pose+1];
+  // double main_angle = -90.0 + double(main_angle_pose * angles_v[main_angle_pose] + (main_angle_pose-1) * angles_v[main_angle_pose-1] + (main_angle_pose+1) * angles_v[main_angle_pose+1]) / total_samples;
 
   return main_angle;
 
