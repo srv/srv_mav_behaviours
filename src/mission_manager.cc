@@ -45,7 +45,6 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
     ROS_WARN("Sweeping parameters can not be modified now");
   }
 
-
   checkParameters();
 
 }
@@ -74,9 +73,10 @@ void MissionManager::configure(){
 
   position_controllers_enabled = false;
 
+  WP_x = WP_y = WP_z = 0.0;
+
   performing_sweep = false;
 
-  WP_x = WP_y = WP_z = 0.0;
   initial_yaw_sweep = 0.0;
   total_y_displacement = 0.0;
   final_z_sweep = 0.0;
@@ -92,6 +92,8 @@ void MissionManager::configure(){
 
   sweep_y_size = sweep_z_size = sweep_y_increment = sweep_z_increment = 0.0;
 
+  nh_.setParam("hovering", false);
+
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
 
@@ -103,6 +105,7 @@ void MissionManager::configure(){
   stop_sweep_srv_ = nh_.advertiseService("stop_sweep", &MissionManager::stopSweep, this);
   pause_sweep_srv_ = nh_.advertiseService("pause_sweep", &MissionManager::pauseSweep, this);
   resume_sweep_srv_ = nh_.advertiseService("resume_sweep", &MissionManager::resumeSweep, this);
+  hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
@@ -208,9 +211,8 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     sweep_state = 0; // going to the right
     ROS_WARN("Starting new sweep");
 
-  }else{ // there is probably another mission in progress
-
-    ROS_WARN("New sweep not allowed");
+    //stop all the other behaviours
+    nh_.setParam("hovering", false);
 
   }
 
@@ -318,9 +320,8 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
     
       ROS_WARN("Resuming sweep");
 
-    }else{ // there is probably another mission in progress
-
-      ROS_WARN("Resume sweep not allowed");
+      //stop all the other behaviours
+      nh_.setParam("hovering", false);
 
     }
 
@@ -331,6 +332,41 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
   }
 
   return true;
+}
+
+bool MissionManager::hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  performHovering();
+  return true;
+}
+
+void MissionManager::performHovering(){
+
+  // request control to the Safety Manager
+  srv_mav_behaviours::RequestControl request_control;
+  request_control_client_.call(request_control);
+
+  if(request_control.response.allowed){ // hover
+
+    position_control_granted = true;
+
+    nh_.setParam("hovering", true);
+
+    //update the WP to the current position
+    WP_x = current_x;
+    WP_y = current_y;
+    WP_z = current_z;
+
+    if(performing_sweep){//pause the sweeping in course (if any)
+
+      sweep_status = 2;
+      nh_.setParam("sweep_status", sweep_status);
+      ROS_WARN("Sweeping paused");
+      performing_sweep = false;
+
+    }
+  }
+
 }
 
 void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
@@ -366,13 +402,14 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     }
 
-    //TODO: stop/pause the rest of behaviours
+    //stop all the other behaviours
+    nh_.setParam("hovering", false);
 
   }
 
   if(performing_sweep){
 
-    performSweep();
+    performSweep(); //it provides the WP
 
   }
 

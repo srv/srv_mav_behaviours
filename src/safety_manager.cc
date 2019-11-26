@@ -203,7 +203,7 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
     nh_.setParam("position_control_granted", true);
 
   }else{
-    res.allowed = false;
+    res.allowed = true;
     ROS_WARN("Autonomous behaviour was already allowed");
   }
 

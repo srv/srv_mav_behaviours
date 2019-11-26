@@ -28,6 +28,7 @@
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/mission_managerConfig.h>
 
+#include <std_srvs/Empty.h>
 #include <srv_mav_behaviours/StartSweep.h>
 #include <srv_mav_behaviours/StopSweep.h>
 #include <srv_mav_behaviours/PauseSweep.h>
@@ -78,6 +79,7 @@ class MissionManager {
   // Services
   ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
+  ros::ServiceServer hover_srv_;
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::mission_managerConfig &config, uint32_t level);
@@ -87,6 +89,7 @@ class MissionManager {
   bool stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res);
   bool pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res);
   bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
+  bool hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
   // Callbacks
   void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
@@ -95,6 +98,7 @@ class MissionManager {
   // Other methods
   void checkParameters();
   void performSweep();
+  void performHovering();
 
 };
 
