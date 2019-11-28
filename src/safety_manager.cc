@@ -745,9 +745,7 @@ double SafetyManager::getOrientationFrontMain(){
 
   if(total_samples > 0){
     main_angle = -90.0 + double(accumulated) / total_samples;
-  }else{
-    ROS_WARN("Wall main orientation cannot be computed"); // return 0
-  }
+  }// else the angle cannot be computed. Return 0 deg.
 
   return main_angle;
 
