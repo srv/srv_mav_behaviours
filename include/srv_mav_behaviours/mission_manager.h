@@ -70,6 +70,7 @@ class MissionManager {
 
   bool performing_sweep;
   double WP_x, WP_y, WP_z;
+  double pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z;
   double initial_yaw_sweep;
   double total_y_displacement;
   double final_z_sweep;

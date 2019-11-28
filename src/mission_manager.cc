@@ -263,6 +263,11 @@ bool MissionManager::pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, sr
     give_up_control_client_.call(give_up_control);
     position_control_granted = false;
 
+    // save WP to allow resuming the sweeping
+    pausedSW_WP_x = WP_x;
+    pausedSW_WP_y = WP_y;
+    pausedSW_WP_z = WP_z;
+
   }else{
 
     ROS_WARN("No sweeping in course");
@@ -285,6 +290,11 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
       position_control_granted = true;
 
       //recompute the WP with the current orientation
+
+      // restore saved WP
+      WP_x = pausedSW_WP_x;
+      WP_y = pausedSW_WP_y;
+      WP_z = pausedSW_WP_z;
 
       if((sweep_state == 0) || (sweep_state == 2)){ // not going down
 
@@ -352,11 +362,6 @@ void MissionManager::performHovering(){
 
     nh_.setParam("hovering", true);
 
-    //update the WP to the current position
-    WP_x = current_x;
-    WP_y = current_y;
-    WP_z = current_z;
-
     if(performing_sweep){//pause the sweeping in course (if any)
 
       sweep_status = 2;
@@ -364,7 +369,18 @@ void MissionManager::performHovering(){
       ROS_WARN("Sweeping paused");
       performing_sweep = false;
 
+      // save WP to allow resuming the sweeping
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
+
     }
+
+    //update the WP to the current position
+    WP_x = current_x;
+    WP_y = current_y;
+    WP_z = current_z;
+
   }
 
 }
@@ -399,6 +415,11 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       nh_.setParam("sweep_status", sweep_status);
       ROS_WARN("Sweeping paused");
       performing_sweep = false;
+
+      // save WP to allow resuming the sweeping
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
 
     }
 
