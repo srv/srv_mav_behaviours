@@ -740,10 +740,14 @@ double SafetyManager::getOrientationFrontMain(){
           accumulated += i*angles_v[i];
       }
   }
-  double main_angle = -90.0 + double(accumulated) / total_samples;
 
-  // int total_samples = angles_v[main_angle_pose] + angles_v[main_angle_pose-1] + angles_v[main_angle_pose+1];
-  // double main_angle = -90.0 + double(main_angle_pose * angles_v[main_angle_pose] + (main_angle_pose-1) * angles_v[main_angle_pose-1] + (main_angle_pose+1) * angles_v[main_angle_pose+1]) / total_samples;
+  double main_angle = 0.0;
+
+  if(total_samples > 0){
+    main_angle = -90.0 + double(accumulated) / total_samples;
+  }else{
+    ROS_WARN("Wall main orientation cannot be computed"); // return 0
+  }
 
   return main_angle;
 
