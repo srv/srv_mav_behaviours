@@ -330,13 +330,21 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   desired_vz = user_desired_vel.linear.z;
   desired_vyaw = user_desired_vel.angular.z;
 
-  if(position_control_granted){
+  if(!position_control_granted){
+
+    position_ctrl_vel_received = false;
+
+  }else{
 
     if((desired_vx == 0.0) && (desired_vy == 0.0)){
 
-      desired_vx = position_ctrl_vel.linear.x;
-      desired_vy = position_ctrl_vel.linear.y;
-      desired_vz = position_ctrl_vel.linear.z;
+      if(position_ctrl_vel_received){
+
+        desired_vx = position_ctrl_vel.linear.x;
+        desired_vy = position_ctrl_vel.linear.y;
+        desired_vz = position_ctrl_vel.linear.z;
+
+      }
 
     }else{ // the autonomous behaviour can be stopped sending commands in vX or vY
 
