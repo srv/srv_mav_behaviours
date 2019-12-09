@@ -312,9 +312,13 @@ void SafetyManager::heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& he
 
 void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceiling_distance_msg){
 
-  distance_ceiling = ceiling_distance_msg->range;
-  distance_ceiling_received = true;
+  if(std::isfinite(ceiling_distance_msg->range)){
+    distance_ceiling = ceiling_distance_msg->range;
+  }else{
+    distance_ceiling = 5.0; //we received a nan or inf
+  }	 
 
+  distance_ceiling_received = true;
 }
 
 void SafetyManager::timerClb(const ros::TimerEvent& event){
