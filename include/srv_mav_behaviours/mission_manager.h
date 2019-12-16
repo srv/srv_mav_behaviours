@@ -82,7 +82,7 @@ class MissionManager {
   ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
   ros::ServiceServer hover_srv_;
-  ros::ServiceServer go_home_srv_;
+  ros::ServiceServer go_home_srv_, set_home_srv_;
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::mission_managerConfig &config, uint32_t level);
@@ -94,6 +94,7 @@ class MissionManager {
   bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
   bool hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
   // Callbacks
   void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);

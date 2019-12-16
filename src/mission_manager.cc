@@ -115,6 +115,7 @@ void MissionManager::configure(){
   resume_sweep_srv_ = nh_.advertiseService("resume_sweep", &MissionManager::resumeSweep, this);
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
   go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
+  set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
@@ -361,6 +362,8 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
 
 bool MissionManager::hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
+  if(!pose_received) return false;
+
   performHovering();
   return true;
 }
@@ -402,6 +405,8 @@ void MissionManager::performHovering(){
 
 bool MissionManager::goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
+  if(!pose_received) return false;
+
   performGoHome();
   return true;
 }
@@ -439,6 +444,15 @@ void MissionManager::performGoHome(){
 
   }
 
+}
+
+bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(!pose_received) return false;
+  
+  home_x = current_x;
+  home_y = current_y;
+  return true;
 }
 
 void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
