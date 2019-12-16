@@ -380,6 +380,9 @@ void MissionManager::performHovering(){
 
     nh_.setParam("hovering", true);
 
+    //stop all other behaviours
+    nh_.setParam("going_home", false);
+
     if(performing_sweep){//pause the sweeping in course (if any)
 
       sweep_status = 2;
@@ -423,6 +426,9 @@ void MissionManager::performGoHome(){
 
     nh_.setParam("going_home", true);
 
+    //stop all other behaviours
+    nh_.setParam("hovering", false);
+
     if(performing_sweep){//pause the sweeping in course (if any)
 
       sweep_status = 2;
@@ -452,6 +458,14 @@ bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Res
   
   home_x = current_x;
   home_y = current_y;
+
+  //write the home point in the parameter server for the GUI
+  nh_.setParam("home_x", home_x);
+  nh_.setParam("home_y", home_y);
+  nh_.setParam("home_z", home_z);
+
+  ROS_INFO("New home point: %2.2f, %2.2f, %2.2f", home_x, home_y, home_z);
+
   return true;
 }
 
