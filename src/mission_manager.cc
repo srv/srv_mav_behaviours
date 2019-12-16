@@ -45,6 +45,8 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
     ROS_WARN("Sweeping parameters can not be modified now");
   }
 
+  home_z = config.home_z;
+
   checkParameters();
 
 }
@@ -63,6 +65,9 @@ void MissionManager::configure(){
 
   nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
   ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
+
+  nh_.param("home_z", home_z, 1.5);
+  ROS_INFO("Home Z: %2.2f", home_z);
 
   checkParameters();
 
@@ -94,6 +99,9 @@ void MissionManager::configure(){
 
   nh_.setParam("hovering", false);
 
+  home_x = home_y = 0.0; // home_z set through the launchfile
+  nh_.setParam("going_home", false);
+
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
 
@@ -106,6 +114,7 @@ void MissionManager::configure(){
   pause_sweep_srv_ = nh_.advertiseService("pause_sweep", &MissionManager::pauseSweep, this);
   resume_sweep_srv_ = nh_.advertiseService("resume_sweep", &MissionManager::resumeSweep, this);
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
+  go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
@@ -121,6 +130,7 @@ void MissionManager::checkParameters(){
   min_height = abs(min_height);
   max_height = abs(max_height);
   sweep_WP_error = abs(sweep_WP_error);
+  home_z = abs(home_z);
 
   if(min_height < 0.5){
 
@@ -141,6 +151,11 @@ void MissionManager::checkParameters(){
     ROS_WARN("max_height set to %2.2f m", max_height);
 
   }
+
+  if(home_z < 0.5){
+    home_z = 0.5;
+    ROS_WARN("home_z was too low. home_z is set to %2.2f", home_z);
+  } 
 
 }
 
@@ -385,6 +400,47 @@ void MissionManager::performHovering(){
 
 }
 
+bool MissionManager::goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  performGoHome();
+  return true;
+}
+
+void MissionManager::performGoHome(){
+
+  // request control to the Safety Manager
+  srv_mav_behaviours::RequestControl request_control;
+  request_control_client_.call(request_control);
+
+  if(request_control.response.allowed){ // go home
+
+    position_control_granted = true;
+
+    nh_.setParam("going_home", true);
+
+    if(performing_sweep){//pause the sweeping in course (if any)
+
+      sweep_status = 2;
+      nh_.setParam("sweep_status", sweep_status);
+      ROS_WARN("Sweeping paused");
+      performing_sweep = false;
+
+      // save WP to allow resuming the sweeping
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
+
+    }
+
+    //update the WP to the current position
+    WP_x = home_x;
+    WP_y = home_y;
+    WP_z = home_z;
+
+  }
+
+}
+
 void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
 
   current_x = pose_msg->pose.pose.position.x;
@@ -425,6 +481,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     //stop all the other behaviours
     nh_.setParam("hovering", false);
+    nh_.setParam("going_home", false);
 
   }
 
