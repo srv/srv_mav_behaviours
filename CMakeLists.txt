@@ -60,9 +60,6 @@ add_service_files(
   RequestControl.srv
   GiveUpControl.srv
   StartSweep.srv
-  StopSweep.srv
-  PauseSweep.srv
-  ResumeSweep.srv
   StartVerticalInspection.srv
 )
 

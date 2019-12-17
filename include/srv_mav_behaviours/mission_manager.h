@@ -30,9 +30,6 @@
 
 #include <std_srvs/Empty.h>
 #include <srv_mav_behaviours/StartSweep.h>
-#include <srv_mav_behaviours/StopSweep.h>
-#include <srv_mav_behaviours/PauseSweep.h>
-#include <srv_mav_behaviours/ResumeSweep.h>
 #include <srv_mav_behaviours/StartVerticalInspection.h>
 #include <srv_mav_behaviours/RequestControl.h>
 #include <srv_mav_behaviours/GiveUpControl.h>
@@ -103,9 +100,9 @@ class MissionManager {
 
   // Services
   bool startSweep(srv_mav_behaviours::StartSweep::Request &req, srv_mav_behaviours::StartSweep::Response &res);
-  bool stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res);
-  bool pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res);
-  bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
+  bool stopSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool startVerticalInspection(srv_mav_behaviours::StartVerticalInspection::Request &req, srv_mav_behaviours::StartVerticalInspection::Response &res);
   bool stopVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool pauseVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);

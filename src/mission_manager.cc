@@ -254,7 +254,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
   return true;
 }
 
-bool MissionManager::stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res){
+bool MissionManager::stopSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
   if(performing_sweep){
 
@@ -284,7 +284,7 @@ bool MissionManager::stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_
   return true;
 }
 
-bool MissionManager::pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res){
+bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
   if(performing_sweep){
 
@@ -312,7 +312,7 @@ bool MissionManager::pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, sr
   return true;
 }
 
-bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res){
+bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
   if(sweep_status == 2){ // the last sweeping is paused
 
