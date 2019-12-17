@@ -63,6 +63,7 @@ add_service_files(
   StopSweep.srv
   PauseSweep.srv
   ResumeSweep.srv
+  StartVerticalInspection.srv
 )
 
 # Generate added messages and services with any dependencies listed here

@@ -33,6 +33,7 @@
 #include <srv_mav_behaviours/StopSweep.h>
 #include <srv_mav_behaviours/PauseSweep.h>
 #include <srv_mav_behaviours/ResumeSweep.h>
+#include <srv_mav_behaviours/StartVerticalInspection.h>
 #include <srv_mav_behaviours/RequestControl.h>
 #include <srv_mav_behaviours/GiveUpControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
@@ -59,7 +60,9 @@ class MissionManager {
 
   // Params
   double min_height, max_height;
-  double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment, sweep_WP_error;
+  double WP_error;
+  double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment;
+  double vinspection_y_size, vinspection_z_size, vinspection_z_increment;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;
@@ -68,19 +71,30 @@ class MissionManager {
 
   bool position_control_granted, position_controllers_enabled;
 
-  bool performing_sweep;
   double WP_x, WP_y, WP_z;
+
   double pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z;
+
+  bool performing_sweep;
   double initial_yaw_sweep;
-  double total_y_displacement;
+  double sweep_y_acummulated;
   double final_z_sweep;
   int sweep_state;
   int sweep_status;
+
+  bool performing_vinspection;
+  double initial_yaw_vinspection;
+  double vinspection_z_acummulated;
+  double final_z_vinspection;
+  int vinspection_state;
+  int vinspection_status;
+
   double home_x, home_y, home_z;
 
   // Services
   ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
+  ros::ServiceServer start_vertical_inspection_srv_, stop_vertical_inspection_srv_, pause_vertical_inspection_srv_, resume_vertical_inspection_srv_;
   ros::ServiceServer hover_srv_;
   ros::ServiceServer go_home_srv_, set_home_srv_;
 
@@ -92,6 +106,10 @@ class MissionManager {
   bool stopSweep(srv_mav_behaviours::StopSweep::Request &req, srv_mav_behaviours::StopSweep::Response &res);
   bool pauseSweep(srv_mav_behaviours::PauseSweep::Request &req, srv_mav_behaviours::PauseSweep::Response &res);
   bool resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, srv_mav_behaviours::ResumeSweep::Response &res);
+  bool startVerticalInspection(srv_mav_behaviours::StartVerticalInspection::Request &req, srv_mav_behaviours::StartVerticalInspection::Response &res);
+  bool stopVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool pauseVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool resumeVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
@@ -103,6 +121,7 @@ class MissionManager {
   // Other methods
   void checkParameters();
   void performSweep();
+  void performVerticalInspection();
   void performHovering();
   void performGoHome();
 

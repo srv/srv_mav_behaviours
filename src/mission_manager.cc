@@ -37,13 +37,7 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
   min_height = config.min_height;
   max_height = config.max_height;
 
-  if(!performing_sweep){
-
-    sweep_WP_error = config.sweep_WP_error;
-
-  }else{
-    ROS_WARN("Sweeping parameters can not be modified now");
-  }
+  WP_error = config.WP_error;
 
   home_z = config.home_z;
 
@@ -63,8 +57,8 @@ void MissionManager::configure(){
   nh_.param("max_height", max_height, 2.0);
   ROS_INFO("Max height: %2.2f", max_height); // maximum height for the autonomous behaviours
 
-  nh_.param("sweep_WP_error", sweep_WP_error, 0.3);
-  ROS_INFO("Sweep_WP_error: %2.2f", sweep_WP_error);
+  nh_.param("WP_error", WP_error, 0.3);
+  ROS_INFO("WP_error: %2.2f", WP_error);
 
   nh_.param("home_z", home_z, 1.5);
   ROS_INFO("Home Z: %2.2f", home_z);
@@ -80,10 +74,12 @@ void MissionManager::configure(){
 
   WP_x = WP_y = WP_z = 0.0;
 
+  // --------------parameters for WP-based sweeping-----------------
+
   performing_sweep = false;
 
   initial_yaw_sweep = 0.0;
-  total_y_displacement = 0.0;
+  sweep_y_acummulated = 0.0;
   final_z_sweep = 0.0;
   sweep_state = 0;  //0--> go right
                     //1--> go down
@@ -97,7 +93,28 @@ void MissionManager::configure(){
 
   sweep_y_size = sweep_z_size = sweep_y_increment = sweep_z_increment = 0.0;
 
+  // --------------parameters for vertical inspection-----------------
+
+  performing_vinspection = false;
+
+  initial_yaw_vinspection = 0.0;
+  final_z_vinspection = 0.0;
+  vinspection_state = 0;  //0--> go up
+                          //1--> go right
+                          //2--> go down
+
+  vinspection_status = 0; //0-->No vertical inspection in course
+                          //1-->Vertical inspection
+                          //2-->Paused
+  nh_.setParam("vinspection_status", vinspection_status);
+
+  vinspection_y_size = vinspection_z_size = vinspection_z_increment = 0.0;
+
+  // -------------------parameters for hovering--------------------
+
   nh_.setParam("hovering", false);
+
+  // -------------------parameters for go-home---------------------
 
   home_x = home_y = 0.0; // home_z set through the launchfile
   nh_.setParam("going_home", false);
@@ -113,6 +130,10 @@ void MissionManager::configure(){
   stop_sweep_srv_ = nh_.advertiseService("stop_sweep", &MissionManager::stopSweep, this);
   pause_sweep_srv_ = nh_.advertiseService("pause_sweep", &MissionManager::pauseSweep, this);
   resume_sweep_srv_ = nh_.advertiseService("resume_sweep", &MissionManager::resumeSweep, this);
+  start_vertical_inspection_srv_ = nh_.advertiseService("start_vertical_inspection", &MissionManager::startVerticalInspection, this);
+  stop_vertical_inspection_srv_ = nh_.advertiseService("stop_vertical_inspection", &MissionManager::stopVerticalInspection, this);
+  pause_vertical_inspection_srv_ = nh_.advertiseService("pause_vertical_inspection", &MissionManager::pauseVerticalInspection, this);
+  resume_vertical_inspection_srv_ = nh_.advertiseService("resume_vertical_inspection", &MissionManager::resumeVerticalInspection, this);
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
   go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
   set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
@@ -130,7 +151,7 @@ void MissionManager::checkParameters(){
 
   min_height = abs(min_height);
   max_height = abs(max_height);
-  sweep_WP_error = abs(sweep_WP_error);
+  WP_error = abs(WP_error);
   home_z = abs(home_z);
 
   if(min_height < 0.5){
@@ -174,11 +195,6 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     return false;
   }
 
-  if(current_z > max_height){
-    ROS_WARN("Flying too high to start a sweep");
-    return false;
-  }
-
   //load the sweeping parameters
   sweep_y_size = req.width;
   sweep_z_size = req.height;
@@ -217,7 +233,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     WP_y = current_y + world_incr.getY();
     WP_z = current_z;
     initial_yaw_sweep = current_yaw;
-    total_y_displacement = 0.0;
+    sweep_y_acummulated = 0.0;
     final_z_sweep = current_z - sweep_z_size;
 
     performing_sweep = true;  
@@ -229,7 +245,10 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
     //stop all the other behaviours
     nh_.setParam("hovering", false);
-
+    nh_.setParam("going_home", false);
+    performing_vinspection = false;
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
   }
 
   return true;
@@ -348,12 +367,209 @@ bool MissionManager::resumeSweep(srv_mav_behaviours::ResumeSweep::Request &req, 
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
+      nh_.setParam("going_home", false);
+      performing_vinspection = false;
+      vinspection_status = 0;
+      nh_.setParam("vinspection_status", vinspection_status);
 
     }
 
   }else{
 
     ROS_WARN("No sweeping in pause");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalInspection::Request &req, srv_mav_behaviours::StartVerticalInspection::Response &res){
+
+  if(!pose_received) return false;
+
+  if(performing_vinspection || (vinspection_status == 2)){
+    ROS_WARN("Vertical inspection already in process!!");
+    return false;
+  }
+
+  if(current_z > max_height){
+    ROS_WARN("Flying too high to start a vertical inspection");
+    return false;
+  }
+
+  //load the sweeping parameters
+  vinspection_y_size = req.width;
+  vinspection_z_size = req.height;
+  vinspection_z_increment = req.vertical_step;
+
+  if((vinspection_y_size <= 0.0) || (vinspection_z_size <= 0.0)){
+
+    ROS_WARN("Vertical inspectioning dimensions must be greater than 0");
+    return false;
+
+  }
+
+  if((vinspection_z_increment > vinspection_z_size) || (vinspection_z_increment == 0.0)) vinspection_z_increment = vinspection_z_size;
+
+  // request control to the Safety Manager
+  srv_mav_behaviours::RequestControl request_control;
+  request_control_client_.call(request_control);
+
+  if(request_control.response.allowed){ // start the vertical inspection
+
+    position_control_granted = true;
+
+    //the vertical inspection starts from the bottom left corner
+
+    //compute the first WP
+    WP_x = current_x;
+    WP_y = current_y;
+    WP_z = current_z + vinspection_z_increment;
+    initial_yaw_vinspection = current_yaw;
+    vinspection_z_acummulated = 0.0;
+    final_z_vinspection = current_z;
+
+    performing_vinspection = true;  
+    vinspection_status = 1;
+    nh_.setParam("vinspection_status", vinspection_status);
+  
+    vinspection_state = 0; // going up
+    ROS_WARN("Starting new vertical inspection");
+
+    //stop all the other behaviours
+    nh_.setParam("hovering", false);
+    nh_.setParam("going_home", false);
+    performing_sweep = false;
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+  }
+
+  return true;
+}
+
+bool MissionManager::stopVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_vinspection){
+
+    performing_vinspection = false;
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
+    ROS_WARN("Vertical inspection stopped");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
+
+  }else if(vinspection_status == 2){ // the last vertical inspection is paused
+
+    // performing_sweep is already false
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
+    ROS_WARN("Vertical inspection stopped");
+
+  }else{
+
+    ROS_WARN("No vertical inspection in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_vinspection){
+
+    performing_vinspection = false;
+    vinspection_status = 2;
+    nh_.setParam("vinspection_status", vinspection_status);
+    ROS_WARN("Vertical inspection paused");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
+
+    // save WP to allow resuming the vertical inspection
+    pausedSW_WP_x = WP_x;
+    pausedSW_WP_y = WP_y;
+    pausedSW_WP_z = WP_z;
+
+  }else{
+
+    ROS_WARN("No vertical inspection in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(vinspection_status == 2){ // the last vertical inspection is paused
+
+    // request control to the Safety Manager
+    srv_mav_behaviours::RequestControl request_control;
+    request_control_client_.call(request_control);
+
+    if(request_control.response.allowed){ // resume the vertical inspection
+
+      position_control_granted = true;
+
+      //recompute the WP with the current orientation
+
+      // restore saved WP
+      WP_x = pausedSW_WP_x;
+      WP_y = pausedSW_WP_y;
+      WP_z = pausedSW_WP_z;
+
+      if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
+
+        //update the next WP
+        WP_x = current_x;
+        WP_y = current_y;
+
+      }else{ // going to the right
+
+        // update the inital_yaw_vinspection for computing the next waypoint
+        initial_yaw_vinspection = current_yaw;
+
+        double remaining_x = WP_x - current_x;
+        double remaining_y = WP_y - current_y;
+        double vinspection_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
+
+        tf::Vector3 robot_incr(0.0, -vinspection_y_remaining, 0.0); //move to the right
+
+        //rotate the increment to the world frame using the estimated yaw
+        tf::Matrix3x3 m_rot;
+        m_rot.setRPY(0, 0, initial_yaw_vinspection);
+        tf::Vector3 world_incr = m_rot * robot_incr;
+
+        //update the next WP
+        WP_x = current_x + world_incr.getX();
+        WP_y = current_y + world_incr.getY();
+
+      }
+      
+      performing_vinspection = true;  
+      vinspection_status = 1;
+      nh_.setParam("vinspection_status", vinspection_status);
+    
+      ROS_WARN("Resuming vertical inspection");
+
+      //stop all the other behaviours
+      nh_.setParam("hovering", false);
+      nh_.setParam("going_home", false);
+      performing_sweep = false;
+      sweep_status = 0;
+      nh_.setParam("sweep_status", sweep_status);
+
+    }
+
+  }else{
+
+    ROS_WARN("No vertical inspection in pause");
 
   }
 
@@ -391,6 +607,20 @@ void MissionManager::performHovering(){
       performing_sweep = false;
 
       // save WP to allow resuming the sweeping
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
+
+    }
+
+    if(performing_vinspection){//pause the vertical inspection in course (if any)
+
+      vinspection_status = 2;
+      nh_.setParam("vinspection_status", vinspection_status);
+      ROS_WARN("Vertical inspection paused");
+      performing_vinspection = false;
+
+      // save WP to allow resuming the vertical inspection
       pausedSW_WP_x = WP_x;
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
@@ -437,6 +667,20 @@ void MissionManager::performGoHome(){
       performing_sweep = false;
 
       // save WP to allow resuming the sweeping
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
+
+    }
+
+    if(performing_vinspection){//pause the vertical inspection in course (if any)
+
+      vinspection_status = 2;
+      nh_.setParam("vinspection_status", vinspection_status);
+      ROS_WARN("Vertical inspection paused");
+      performing_vinspection = false;
+
+      // save WP to allow resuming the vertical inspection
       pausedSW_WP_x = WP_x;
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
@@ -507,6 +751,20 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     }
 
+    if(performing_vinspection){//pause the vertical inspection in course (if any)
+
+      vinspection_status = 2;
+      nh_.setParam("vinspection_status", vinspection_status);
+      ROS_WARN("Vertical inspection paused");
+      performing_vinspection = false;
+
+      // save WP to allow resuming the vertical inspection
+      pausedSW_WP_x = WP_x;
+      pausedSW_WP_y = WP_y;
+      pausedSW_WP_z = WP_z;
+
+    }
+
     //stop all the other behaviours
     nh_.setParam("hovering", false);
     nh_.setParam("going_home", false);
@@ -516,6 +774,12 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   if(performing_sweep){
 
     performSweep(); //it provides the WP
+
+  }
+
+  if(performing_vinspection){
+
+    performVerticalInspection(); //it provides the WP
 
   }
 
@@ -568,19 +832,19 @@ void MissionManager::performSweep(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < sweep_WP_error){ // the WP has been reached
+  if(errorWP < WP_error){ // the WP has been reached
 
     // update the sweep_state if necessary
 
     if((sweep_state == 0) || (sweep_state == 2)){ // going to the right or to the left
 
-      total_y_displacement += sweep_y_increment;
+      sweep_y_acummulated += sweep_y_increment;
 
-      if (total_y_displacement >= sweep_y_size){ // lateral movement finished
+      if (sweep_y_acummulated >= sweep_y_size){ // lateral movement finished
 
         sweep_state ++;
         sweep_state = sweep_state%4;
-        total_y_displacement = 0.0;
+        sweep_y_acummulated = 0.0;
 
       } //else: keep going in that direction
 
@@ -646,6 +910,86 @@ void MissionManager::performSweep(){
   } 
 
   if(!performing_sweep){ // the sweeping has finished now
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+    position_control_granted = false;
+
+  }
+
+}
+
+void MissionManager::performVerticalInspection(){
+
+  double errorX = WP_x-current_x;
+  double errorY = WP_y-current_y;
+  double errorZ = WP_z-current_z;
+
+  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+
+  if(errorWP < WP_error){ // the WP has been reached
+
+    // update the sweep_state if necessary
+
+    if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
+
+      vinspection_z_acummulated += vinspection_z_increment;
+
+      if (vinspection_z_acummulated >= vinspection_z_size){ // vertical movement finished
+
+        vinspection_state ++;
+        vinspection_state = vinspection_state%3;
+        vinspection_z_acummulated = 0.0;
+
+      } //else: keep going in that direction
+
+      if (vinspection_state == 0){ // the state says to go up again
+        
+        ROS_WARN("Vertical inspection finised");
+
+        performing_vinspection = false;
+        vinspection_status = 0;
+        nh_.setParam("vinspection_status", vinspection_status);
+
+      }
+
+    } else{ // going to the right
+
+      vinspection_state = 2; //lets go down
+
+    }
+
+    // compute the next WP
+
+    if(vinspection_state == 1){ // lets go to the right
+
+      //rotate the displacement to the world frame using the initial estimated yaw
+      tf::Vector3 robot_incr(0.0, -vinspection_y_size, 0.0);
+      tf::Matrix3x3 m_rot;
+      m_rot.setRPY(0, 0, initial_yaw_vinspection);
+      tf::Vector3 world_incr = m_rot * robot_incr;
+
+      WP_x = WP_x + world_incr.getX();
+      WP_y = WP_y + world_incr.getY();
+
+    }else if(vinspection_state == 0){ //lets go up
+
+      if (performing_vinspection){ // to prevent updating the WP_z after finishing
+
+        WP_z = WP_z + vinspection_z_increment;
+
+      } 
+
+    }else{ //lets go down
+
+      WP_z = WP_z - vinspection_z_increment;
+
+    }
+
+  } 
+
+  if(!performing_vinspection){ // the vertical inspection has finished now
 
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
