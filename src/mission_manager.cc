@@ -79,7 +79,7 @@ void MissionManager::configure(){
   performing_sweep = false;
 
   initial_yaw_sweep = 0.0;
-  sweep_y_acummulated = 0.0;
+  sweep_y_accumulated = 0.0;
   final_z_sweep = 0.0;
   sweep_state = 0;  //0--> go right
                     //1--> go down
@@ -233,7 +233,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     WP_y = current_y + world_incr.getY();
     WP_z = current_z;
     initial_yaw_sweep = current_yaw;
-    sweep_y_acummulated = 0.0;
+    sweep_y_accumulated = 0.0;
     final_z_sweep = current_z - sweep_z_size;
 
     performing_sweep = true;  
@@ -426,7 +426,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     WP_y = current_y;
     WP_z = current_z + vinspection_z_increment;
     initial_yaw_vinspection = current_yaw;
-    vinspection_z_acummulated = 0.0;
+    vinspection_z_accumulated = 0.0;
     final_z_vinspection = current_z;
 
     performing_vinspection = true;  
@@ -838,13 +838,13 @@ void MissionManager::performSweep(){
 
     if((sweep_state == 0) || (sweep_state == 2)){ // going to the right or to the left
 
-      sweep_y_acummulated += sweep_y_increment;
+      sweep_y_accumulated += sweep_y_increment;
 
-      if (sweep_y_acummulated >= sweep_y_size){ // lateral movement finished
+      if (sweep_y_accumulated >= sweep_y_size){ // lateral movement finished
 
         sweep_state ++;
         sweep_state = sweep_state%4;
-        sweep_y_acummulated = 0.0;
+        sweep_y_accumulated = 0.0;
 
       } //else: keep going in that direction
 
@@ -934,13 +934,13 @@ void MissionManager::performVerticalInspection(){
 
     if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
 
-      vinspection_z_acummulated += vinspection_z_increment;
+      vinspection_z_accumulated += vinspection_z_increment;
 
-      if (vinspection_z_acummulated >= vinspection_z_size){ // vertical movement finished
+      if (vinspection_z_accumulated >= vinspection_z_size){ // vertical movement finished
 
         vinspection_state ++;
         vinspection_state = vinspection_state%3;
-        vinspection_z_acummulated = 0.0;
+        vinspection_z_accumulated = 0.0;
 
       } //else: keep going in that direction
 

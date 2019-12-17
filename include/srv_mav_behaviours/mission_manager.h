@@ -77,14 +77,14 @@ class MissionManager {
 
   bool performing_sweep;
   double initial_yaw_sweep;
-  double sweep_y_acummulated;
+  double sweep_y_accumulated;
   double final_z_sweep;
   int sweep_state;
   int sweep_status;
 
   bool performing_vinspection;
   double initial_yaw_vinspection;
-  double vinspection_z_acummulated;
+  double vinspection_z_accumulated;
   double final_z_vinspection;
   int vinspection_state;
   int vinspection_status;
