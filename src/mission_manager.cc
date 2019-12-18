@@ -867,15 +867,18 @@ void MissionManager::performSweep(){
 
     }else{ //lets go to the right or to the left
 
-      double robot_incr_y;
+      double robot_incr_y = sweep_y_increment;
+
+      if((sweep_y_accumulated+sweep_y_increment) > sweep_y_size){
+
+        robot_incr_y = sweep_y_size - sweep_y_accumulated; // the remaining displacement (lower than sweep_y_increment)
+
+      }
 
       if(sweep_state == 0){ // lets go to the right
 
-        robot_incr_y = -sweep_y_increment;
+        robot_incr_y = -robot_incr_y;
 
-      }else{ // lets go to the left (sweep_state == 2)
-
-        robot_incr_y = sweep_y_increment;
       }
 
       //rotate the increment to the world frame using the initial estimated yaw
@@ -959,13 +962,29 @@ void MissionManager::performVerticalInspection(){
 
       if (performing_vinspection){ // to prevent updating the WP_z after finishing
 
-        WP_z = WP_z + vinspection_z_increment;
+        if((vinspection_z_accumulated+vinspection_z_increment) > vinspection_z_size){
+
+          WP_z = WP_z + vinspection_z_size - vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
+
+        }else{
+
+          WP_z = WP_z + vinspection_z_increment;
+
+        }
 
       } 
 
     }else{ //lets go down
 
-      WP_z = WP_z - vinspection_z_increment;
+      if((vinspection_z_accumulated+vinspection_z_increment) > vinspection_z_size){
+
+        WP_z = WP_z - vinspection_z_size - vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
+
+      }else{
+
+        WP_z = WP_z - vinspection_z_increment;
+
+      }
 
     }
 
