@@ -924,17 +924,17 @@ void MissionManager::performVerticalInspection(){
         vinspection_state = vinspection_state%3;
         vinspection_z_accumulated = 0.0;
 
+        if (vinspection_state == 0){ // the state says to go up again
+          
+          ROS_WARN("Vertical inspection finised");
+
+          performing_vinspection = false;
+          vinspection_status = 0;
+          nh_.setParam("vinspection_status", vinspection_status);
+
+        }
+
       } //else: keep going in that direction
-
-      if (vinspection_state == 0){ // the state says to go up again
-        
-        ROS_WARN("Vertical inspection finised");
-
-        performing_vinspection = false;
-        vinspection_status = 0;
-        nh_.setParam("vinspection_status", vinspection_status);
-
-      }
 
     } else{ // going to the right
 
