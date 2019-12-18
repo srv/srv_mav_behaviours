@@ -658,34 +658,12 @@ void MissionManager::performGoHome(){
 
     //stop all other behaviours
     nh_.setParam("hovering", false);
-
-    if(performing_sweep){//pause the sweeping in course (if any)
-
-      sweep_status = 2;
-      nh_.setParam("sweep_status", sweep_status);
-      ROS_WARN("Sweeping paused");
-      performing_sweep = false;
-
-      // save WP to allow resuming the sweeping
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
-
-    }
-
-    if(performing_vinspection){//pause the vertical inspection in course (if any)
-
-      vinspection_status = 2;
-      nh_.setParam("vinspection_status", vinspection_status);
-      ROS_WARN("Vertical inspection paused");
-      performing_vinspection = false;
-
-      // save WP to allow resuming the vertical inspection
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
-
-    }
+    performing_sweep = false;
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+    performing_vinspection = false;
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
 
     //update the WP to the current position
     WP_x = home_x;
