@@ -978,7 +978,7 @@ void MissionManager::performVerticalInspection(){
 
       if((vinspection_z_accumulated+vinspection_z_increment) > vinspection_z_size){
 
-        WP_z = WP_z - vinspection_z_size - vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
+        WP_z = WP_z - vinspection_z_size + vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
 
       }else{
 
