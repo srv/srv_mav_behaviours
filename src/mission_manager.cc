@@ -627,6 +627,8 @@ void MissionManager::performHovering(){
 
     }
 
+    ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", current_x, current_y, current_z);
+
     //update the WP to the current position
     WP_x = current_x;
     WP_y = current_y;
@@ -664,6 +666,8 @@ void MissionManager::performGoHome(){
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
+
+    ROS_WARN("Going home: %2.2f, %2.2f, %2.2f", home_x, home_y, home_z);
 
     //update the WP to the current position
     WP_x = home_x;

@@ -204,7 +204,7 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
 
   }else{
     res.allowed = true;
-    ROS_WARN("Autonomous behaviour was already allowed");
+    ROS_DEBUG("Autonomous behaviour was already allowed");
   }
 
   return true;
