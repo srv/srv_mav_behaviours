@@ -210,7 +210,7 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
 
       res.allowed = true;
       ROS_DEBUG("Autonomous behaviour was already allowed");
-      
+
     }
 
   }else{ // the vehicle is not flying
@@ -360,7 +360,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   }else{
 
-    if((desired_vx == 0.0) && (desired_vy == 0.0)){
+    if((desired_vx == 0.0) && (desired_vy == 0.0) && (flight_status == 3)){
 
       if(position_ctrl_vel_received){
 
