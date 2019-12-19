@@ -113,6 +113,8 @@ void SafetyManager::configure(){
 
   checkParameters();
 
+  flight_status = 0;
+
   desired_vel_received = false;
   position_ctrl_vel_received = false;
   laser_scan_received = false;
@@ -138,6 +140,7 @@ void SafetyManager::configure(){
   laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
   ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
+  flight_status_subs_ = nh_.subscribe("flight_status", 1, &SafetyManager::flightStatusClb, this);
 
   // Advertising Services
   request_control_srv_ = nh_.advertiseService("request_control", &SafetyManager::requestControl, this);
@@ -193,18 +196,29 @@ void SafetyManager::checkParameters(){
 
 bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res){
 
-  if(!position_control_granted){
+  if(flight_status == 3){ // the vehicle is flying
+    if(!position_control_granted){
 
-    position_control_granted = true;
-    res.allowed = true;
-    ROS_INFO("Allowing autonomous behaviour");
+      position_control_granted = true;
+      res.allowed = true;
+      ROS_INFO("Allowing autonomous behaviour");
 
-    //allow autonomous behaviours
-    nh_.setParam("position_control_granted", true);
+      //allow autonomous behaviours
+      nh_.setParam("position_control_granted", true);
 
-  }else{
-    res.allowed = true;
-    ROS_DEBUG("Autonomous behaviour was already allowed");
+    }else{
+
+      res.allowed = true;
+      ROS_DEBUG("Autonomous behaviour was already allowed");
+      
+    }
+
+  }else{ // the vehicle is not flying
+
+    position_control_granted = false;
+    res.allowed = false;
+    ROS_WARN("Autonomous behaviours are not allowed on ground");
+
   }
 
   return true;
@@ -228,6 +242,12 @@ bool SafetyManager::giveUpControl(srv_mav_behaviours::GiveUpControl::Request &re
   }
 
   return true;
+
+}
+
+void SafetyManager::flightStatusClb(const std_msgs::UInt8::ConstPtr& flight_status_msg){
+
+  flight_status = flight_status_msg->data;
 
 }
 
