@@ -394,7 +394,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
 
   if(current_z > max_height){
     ROS_WARN("Flying too high to start a vertical inspection");
-    return false;
+    return true;
   }
 
   //load the sweeping parameters
