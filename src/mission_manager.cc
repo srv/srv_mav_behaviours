@@ -192,7 +192,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(current_z < min_height){
     ROS_WARN("Flying too low to start a sweep");
-    return false;
+    return true;
   }
 
   //load the sweeping parameters
