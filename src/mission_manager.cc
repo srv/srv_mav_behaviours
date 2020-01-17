@@ -63,9 +63,14 @@ void MissionManager::configure(){
   nh_.param("home_z", home_z, 1.5);
   ROS_INFO("Home Z: %2.2f", home_z);
 
+  nh_.param("sweep_min_dist", sweep_min_dist, 3.0);
+  ROS_INFO("Wall-to-wall sweeping min. distance: %2.2f", sweep_min_dist);
+
   checkParameters();
 
   pose_received = false;
+
+  min_dist_left = min_dist_right = INFINITY;
 
   position_control_granted = false;
   nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
@@ -124,6 +129,8 @@ void MissionManager::configure(){
 
   // Subscribers
   pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
+  min_distance_left_subs_ = nh_.subscribe("min_distance_left", 1, &MissionManager::minDistanceLeftClb, this);
+  min_distance_right_subs_ = nh_.subscribe("min_distance_right", 1, &MissionManager::minDistanceLeftClb, this);
 
   // Advertising Services
   start_sweep_srv_ = nh_.advertiseService("start_sweep", &MissionManager::startSweep, this);
@@ -181,6 +188,18 @@ void MissionManager::checkParameters(){
 
 }
 
+void MissionManager::minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& range_msg){
+
+  min_dist_left = range_msg->range;
+
+}
+
+void MissionManager::minDistanceRightClb(const sensor_msgs::Range::ConstPtr& range_msg){
+
+  min_dist_right = range_msg->range;
+
+}
+
 bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, srv_mav_behaviours::StartSweep::Response &res){
 
   if(!pose_received) return false;
@@ -200,14 +219,25 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
   sweep_z_size = req.height;
   sweep_y_increment = req.horizontal_step;
   sweep_z_increment = req.vertical_step;
+  sweep_wall_to_wall = req.wall_to_wall;
 
-  if((sweep_y_size <= 0.0) || (sweep_z_size <= 0.0)){
+  if(((sweep_y_size <= 0.0) && !sweep_wall_to_wall) || (sweep_z_size <= 0.0)){
 
     ROS_WARN("Sweeping dimensions must be greater than 0");
     return false;
 
   }
-  if((sweep_y_increment > sweep_y_size) || (sweep_y_increment == 0.0)) sweep_y_increment = sweep_y_size;
+
+  if(sweep_wall_to_wall){
+
+    sweep_y_increment = 1.0; // horizontal increment set to 1 m for the wall-to-wall sweeping
+
+  }else{
+
+    if((sweep_y_increment > sweep_y_size) || (sweep_y_increment == 0.0)) sweep_y_increment = sweep_y_size;
+
+  }
+
   if((sweep_z_increment > sweep_z_size) || (sweep_z_increment == 0.0)) sweep_z_increment = sweep_z_size;
 
   // request control to the Safety Manager
@@ -822,13 +852,26 @@ void MissionManager::performSweep(){
 
       sweep_y_accumulated += sweep_y_increment;
 
-      if (sweep_y_accumulated >= sweep_y_size){ // lateral movement finished
+      if(!sweep_wall_to_wall){
 
-        sweep_state ++;
-        sweep_state = sweep_state%4;
-        sweep_y_accumulated = 0.0;
+        if(sweep_y_accumulated >= sweep_y_size){ // lateral movement finished
 
-      } //else: keep going in that direction
+          sweep_state ++;
+          sweep_state = sweep_state%4;
+          sweep_y_accumulated = 0.0;
+
+        } //else: keep going in that direction
+
+      }else{// wall-to-wall sweeping
+
+        if(((sweep_state == 0)&&(min_dist_right < sweep_min_dist)) || ((sweep_state == 2)&&(min_dist_left < sweep_min_dist))) { // wall found
+
+          sweep_state ++;
+          sweep_state = sweep_state%4;
+          sweep_y_accumulated = 0.0;
+
+        }//else: keep going in that direction
+      }
 
     } else{ // going down
 

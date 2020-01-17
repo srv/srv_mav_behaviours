@@ -23,6 +23,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <sensor_msgs/Range.h>
 #include <tf/tf.h>
 
 #include <dynamic_reconfigure/server.h>
@@ -50,6 +51,7 @@ class MissionManager {
 
   ros::Publisher pose_pub_;
   ros::Subscriber pose_subs_;
+  ros::Subscriber min_distance_left_subs_, min_distance_right_subs_;
 
   ros::Timer timer_;
 
@@ -58,13 +60,14 @@ class MissionManager {
   // Params
   double min_height, max_height;
   double WP_error;
-  double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment;
-  double vinspection_y_size, vinspection_z_size, vinspection_z_increment;
+  double sweep_min_dist;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;
 
   bool pose_received;
+
+  double min_dist_left, min_dist_right;
 
   bool position_control_granted, position_controllers_enabled;
 
@@ -72,6 +75,8 @@ class MissionManager {
 
   double pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z;
 
+  double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment;
+  bool sweep_wall_to_wall;
   bool performing_sweep;
   double initial_yaw_sweep;
   double sweep_y_accumulated;
@@ -79,6 +84,7 @@ class MissionManager {
   int sweep_state;
   int sweep_status;
 
+  double vinspection_y_size, vinspection_z_size, vinspection_z_increment;
   bool performing_vinspection;
   double initial_yaw_vinspection;
   double vinspection_z_accumulated;
@@ -113,6 +119,8 @@ class MissionManager {
 
   // Callbacks
   void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+  void minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& range_msg);
+  void minDistanceRightClb(const sensor_msgs::Range::ConstPtr& range_msg);
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods
