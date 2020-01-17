@@ -41,6 +41,9 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
 
   home_z = config.home_z;
 
+  sweep_min_dist = config.sweep_min_dist;
+  sweep_wall_to_wall_incr = config.sweep_wall_to_wall_incr;
+
   checkParameters();
 
 }
@@ -65,6 +68,9 @@ void MissionManager::configure(){
 
   nh_.param("sweep_min_dist", sweep_min_dist, 3.0);
   ROS_INFO("Wall-to-wall sweeping min. distance: %2.2f", sweep_min_dist);
+ 
+  nh_.param("sweep_wall_to_wall_incr", sweep_wall_to_wall_incr, 1.0);
+  ROS_INFO("Wall-to-wall sweeping increment: %2.2f", sweep_wall_to_wall_incr);
 
   checkParameters();
 
@@ -186,6 +192,13 @@ void MissionManager::checkParameters(){
     ROS_WARN("home_z was too low. home_z is set to %2.2f", home_z);
   } 
 
+  if(sweep_min_dist < (sweep_wall_to_wall_incr + 2.0)){
+
+    sweep_min_dist = sweep_wall_to_wall_incr + 2.0;
+    ROS_WARN("sweep_min_dist too low, sweep_min_dist set to %2.2f");
+
+  }
+
 }
 
 void MissionManager::minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& range_msg){
@@ -230,7 +243,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(sweep_wall_to_wall){
 
-    sweep_y_increment = 1.0; // horizontal increment set to 1 m for the wall-to-wall sweeping
+    sweep_y_increment = sweep_wall_to_wall_incr; // horizontal increment for the wall-to-wall sweeping
 
   }else{
 

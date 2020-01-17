@@ -61,6 +61,7 @@ class MissionManager {
   double min_height, max_height;
   double WP_error;
   double sweep_min_dist;
+  double sweep_wall_to_wall_incr;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;
