@@ -53,7 +53,8 @@ class SafetyManager {
 
   ros::Publisher twist_pub_;
   ros::Publisher laser_pub_;
-  ros::Publisher range_pub_;
+  ros::Publisher mean_dist_front_pub_;
+  ros::Publisher min_dist_front_pub_, min_dist_left_pub_, min_dist_right_pub_;
   ros::Publisher main_ori_pub_;
   ros::Publisher mean_ori_pub_;
 
@@ -91,7 +92,7 @@ class SafetyManager {
   bool height_received;
   double distance_ceiling;
   bool distance_ceiling_received;
-  double front_distance_fov;
+  double laser_distance_fov;
 
   // Services
   bool requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res);
@@ -118,6 +119,7 @@ class SafetyManager {
   void attenuateZMaxHeight(double & z_vel);
   void computeZAttraction(double & vz_att);
   float getMeanDistanceFront();
+  float getMinDistance(int direction);
   double getOrientationFrontMean();
   double getOrientationFrontMain();
 
