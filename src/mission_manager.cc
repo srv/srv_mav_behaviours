@@ -136,7 +136,7 @@ void MissionManager::configure(){
   // Subscribers
   pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
   min_distance_left_subs_ = nh_.subscribe("min_distance_left", 1, &MissionManager::minDistanceLeftClb, this);
-  min_distance_right_subs_ = nh_.subscribe("min_distance_right", 1, &MissionManager::minDistanceLeftClb, this);
+  min_distance_right_subs_ = nh_.subscribe("min_distance_right", 1, &MissionManager::minDistanceRightClb, this);
 
   // Advertising Services
   start_sweep_srv_ = nh_.advertiseService("start_sweep", &MissionManager::startSweep, this);
