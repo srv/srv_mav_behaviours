@@ -166,6 +166,8 @@ void MissionManager::checkParameters(){
   max_height = abs(max_height);
   WP_error = abs(WP_error);
   home_z = abs(home_z);
+  sweep_min_dist = abs(sweep_min_dist);
+  sweep_wall_to_wall_incr = abs(sweep_wall_to_wall_incr);
 
   if(min_height < 0.5){
 
@@ -192,9 +194,9 @@ void MissionManager::checkParameters(){
     ROS_WARN("home_z was too low. home_z is set to %2.2f", home_z);
   } 
 
-  if(sweep_min_dist < (sweep_wall_to_wall_incr + 2.0)){
+  if(sweep_min_dist < 2.0){
 
-    sweep_min_dist = sweep_wall_to_wall_incr + 2.0;
+    sweep_min_dist = 2.0;
     ROS_WARN("sweep_min_dist too low, sweep_min_dist set to %2.2f", sweep_min_dist);
 
   }
@@ -877,7 +879,8 @@ void MissionManager::performSweep(){
 
       }else{// wall-to-wall sweeping
 
-        if(((sweep_state == 0)&&(min_dist_right < sweep_min_dist)) || ((sweep_state == 2)&&(min_dist_left < sweep_min_dist))) { // wall found
+        if(((sweep_state == 0)&&(min_dist_right < (sweep_min_dist+0.5))) || 
+            ((sweep_state == 2)&&(min_dist_left < (sweep_min_dist+0.5)))) { // wall found
 
           sweep_state ++;
           sweep_state = sweep_state%4;
@@ -925,10 +928,21 @@ void MissionManager::performSweep(){
 
       double robot_incr_y = sweep_y_increment;
 
-      if((sweep_y_accumulated+sweep_y_increment) > sweep_y_size){
+      if(!sweep_wall_to_wall){
 
-        robot_incr_y = sweep_y_size - sweep_y_accumulated; // the remaining displacement (lower than sweep_y_increment)
+        if((sweep_y_accumulated+sweep_y_increment) > sweep_y_size){
 
+          robot_incr_y = sweep_y_size - sweep_y_accumulated; // the remaining displacement (lower than sweep_y_increment)
+
+        }
+
+      }else{// wall-to-wall sweeping
+
+        double wall_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
+
+        if((wall_dist - sweep_y_increment) < sweep_min_dist){
+          robot_incr_y = wall_dist - sweep_min_dist; // the remaining displacement (lower than sweep_y_increment)
+        }
       }
 
       if(sweep_state == 0){ // lets go to the right
