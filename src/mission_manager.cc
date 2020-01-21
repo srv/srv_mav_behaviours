@@ -195,7 +195,7 @@ void MissionManager::checkParameters(){
   if(sweep_min_dist < (sweep_wall_to_wall_incr + 2.0)){
 
     sweep_min_dist = sweep_wall_to_wall_incr + 2.0;
-    ROS_WARN("sweep_min_dist too low, sweep_min_dist set to %2.2f");
+    ROS_WARN("sweep_min_dist too low, sweep_min_dist set to %2.2f", sweep_min_dist);
 
   }
 
