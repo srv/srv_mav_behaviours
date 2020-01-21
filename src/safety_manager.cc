@@ -457,14 +457,14 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   sensor_msgs::RangePtr range_min_left(new sensor_msgs::Range);
   range_min_left = range_mean_front;
-  range_min_left->range = getMinDistance(0);
+  range_min_left->range = getMinDistance(2);
   min_dist_left_pub_.publish(range_min_left);
 
   // compute and publish the minimum distance to the right
 
   sensor_msgs::RangePtr range_min_right(new sensor_msgs::Range);
   range_min_right = range_mean_front;
-  range_min_right->range = getMinDistance(2);
+  range_min_right->range = getMinDistance(0);
   min_dist_right_pub_.publish(range_min_right);
 
   // compute and publish the main orientation regarding the front wall
