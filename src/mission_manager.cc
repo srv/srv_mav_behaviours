@@ -879,8 +879,8 @@ void MissionManager::performSweep(){
 
       }else{// wall-to-wall sweeping
 
-        if(((sweep_state == 0)&&(min_dist_right < (sweep_min_dist+0.5))) || 
-            ((sweep_state == 2)&&(min_dist_left < (sweep_min_dist+0.5)))) { // wall found
+        if(((sweep_state == 0) && (min_dist_right < (sweep_min_dist + WP_error))) || 
+            ((sweep_state == 2) && (min_dist_left < (sweep_min_dist + WP_error)))) { // wall found
 
           sweep_state ++;
           sweep_state = sweep_state%4;
