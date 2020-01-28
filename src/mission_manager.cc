@@ -941,8 +941,8 @@ void MissionManager::performSweep(){
 
         double wall_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
 
-        if((wall_dist - sweep_y_increment) < sweep_min_dist){
-          robot_incr_y = wall_dist - sweep_min_dist; // the remaining displacement (lower than sweep_y_increment)
+        if((wall_dist - WP_error - sweep_y_increment) < sweep_min_dist){
+          robot_incr_y = wall_dist - WP_error - sweep_min_dist; // the remaining displacement (lower than sweep_y_increment)
         }
       }
 
