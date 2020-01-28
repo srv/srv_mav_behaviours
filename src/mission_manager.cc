@@ -446,6 +446,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
   vinspection_y_size = req.width;
   vinspection_z_size = req.height;
   vinspection_z_increment = req.vertical_step;
+  vinspection_to_ceiling = req.to_ceiling;
 
   if((vinspection_y_size <= 0.0) || (vinspection_z_size <= 0.0)){
 

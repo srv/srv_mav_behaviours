@@ -86,6 +86,7 @@ class MissionManager {
   int sweep_status;
 
   double vinspection_y_size, vinspection_z_size, vinspection_z_increment;
+  bool vinspection_to_ceiling;
   bool performing_vinspection;
   double initial_yaw_vinspection;
   double vinspection_z_accumulated;
