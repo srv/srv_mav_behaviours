@@ -51,7 +51,7 @@ class MissionManager {
 
   ros::Publisher pose_pub_;
   ros::Subscriber pose_subs_;
-  ros::Subscriber min_distance_left_subs_, min_distance_right_subs_;
+  ros::Subscriber min_distance_left_subs_, min_distance_right_subs_, min_distance_up_subs_, min_distance_down_subs_;
 
   ros::Timer timer_;
 
@@ -60,15 +60,17 @@ class MissionManager {
   // Params
   double min_height, max_height;
   double WP_error;
-  double sweep_min_dist;
-  double sweep_wall_to_wall_incr;
+  double sweep_min_lateral_dist;
+  double sweep_wall_to_wall_lateral_incr;
+  double vinspection_min_ceiling_dist;
+  double vinspection_to_ceiling_vertical_incr;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;
 
   bool pose_received;
 
-  double min_dist_left, min_dist_right;
+  double min_dist_left, min_dist_right, min_dist_up, min_dist_down;
 
   bool position_control_granted, position_controllers_enabled;
 
@@ -123,6 +125,8 @@ class MissionManager {
   void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
   void minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& range_msg);
   void minDistanceRightClb(const sensor_msgs::Range::ConstPtr& range_msg);
+  void minDistanceUpClb(const sensor_msgs::Range::ConstPtr& range_msg);
+  void minDistanceDownClb(const sensor_msgs::Range::ConstPtr& range_msg);
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods

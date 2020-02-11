@@ -41,8 +41,10 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
 
   home_z = config.home_z;
 
-  sweep_min_dist = config.sweep_min_dist;
-  sweep_wall_to_wall_incr = config.sweep_wall_to_wall_incr;
+  sweep_min_lateral_dist = config.sweep_min_lateral_dist;
+  sweep_wall_to_wall_lateral_incr = config.sweep_wall_to_wall_lateral_incr;
+  vinspection_min_ceiling_dist = config.vinspection_min_ceiling_dist;
+  vinspection_to_ceiling_vertical_incr = config.vinspection_to_ceiling_vertical_incr;
 
   checkParameters();
 
@@ -66,17 +68,23 @@ void MissionManager::configure(){
   nh_.param("home_z", home_z, 1.5);
   ROS_INFO("Home Z: %2.2f", home_z);
 
-  nh_.param("sweep_min_dist", sweep_min_dist, 3.0);
-  ROS_INFO("Wall-to-wall sweeping min. distance: %2.2f", sweep_min_dist);
+  nh_.param("sweep_min_lateral_dist", sweep_min_lateral_dist, 3.0);
+  ROS_INFO("Wall-to-wall sweeping min. distance: %2.2f", sweep_min_lateral_dist);
  
-  nh_.param("sweep_wall_to_wall_incr", sweep_wall_to_wall_incr, 1.0);
-  ROS_INFO("Wall-to-wall sweeping increment: %2.2f", sweep_wall_to_wall_incr);
+  nh_.param("sweep_wall_to_wall_lateral_incr", sweep_wall_to_wall_lateral_incr, 1.0);
+  ROS_INFO("Wall-to-wall sweeping increment: %2.2f", sweep_wall_to_wall_lateral_incr);
+
+  nh_.param("vinspection_min_ceiling_dist", vinspection_min_ceiling_dist, 3.0);
+  ROS_INFO("Vert. inspection up-to-ceiling min. distance: %2.2f", vinspection_min_ceiling_dist);
+
+  nh_.param("vinspection_to_ceiling_vertical_incr", vinspection_to_ceiling_vertical_incr, 1.0);
+  ROS_INFO("Increment for the vert. inpsection up to ceiling: %2.2f", vinspection_to_ceiling_vertical_incr);
 
   checkParameters();
 
   pose_received = false;
 
-  min_dist_left = min_dist_right = INFINITY;
+  min_dist_left = min_dist_right = min_dist_up = min_dist_down = INFINITY;
 
   position_control_granted = false;
   nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
@@ -137,6 +145,8 @@ void MissionManager::configure(){
   pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
   min_distance_left_subs_ = nh_.subscribe("min_distance_left", 1, &MissionManager::minDistanceLeftClb, this);
   min_distance_right_subs_ = nh_.subscribe("min_distance_right", 1, &MissionManager::minDistanceRightClb, this);
+  min_distance_up_subs_ = nh_.subscribe("min_distance_up", 1, &MissionManager::minDistanceUpClb, this);
+  min_distance_down_subs_ = nh_.subscribe("min_distance_down", 1, &MissionManager::minDistanceDownClb, this);
 
   // Advertising Services
   start_sweep_srv_ = nh_.advertiseService("start_sweep", &MissionManager::startSweep, this);
@@ -166,8 +176,10 @@ void MissionManager::checkParameters(){
   max_height = abs(max_height);
   WP_error = abs(WP_error);
   home_z = abs(home_z);
-  sweep_min_dist = abs(sweep_min_dist);
-  sweep_wall_to_wall_incr = abs(sweep_wall_to_wall_incr);
+  sweep_min_lateral_dist = abs(sweep_min_lateral_dist);
+  vinspection_min_ceiling_dist = abs(vinspection_min_ceiling_dist);
+  sweep_wall_to_wall_lateral_incr = abs(sweep_wall_to_wall_lateral_incr);
+  vinspection_to_ceiling_vertical_incr = abs(vinspection_to_ceiling_vertical_incr);
 
   if(min_height < 0.5){
 
@@ -194,10 +206,17 @@ void MissionManager::checkParameters(){
     ROS_WARN("home_z was too low. home_z is set to %2.2f", home_z);
   } 
 
-  if(sweep_min_dist < 2.0){
+  if(sweep_min_lateral_dist < 2.0){
 
-    sweep_min_dist = 2.0;
-    ROS_WARN("sweep_min_dist too low, sweep_min_dist set to %2.2f", sweep_min_dist);
+    sweep_min_lateral_dist = 2.0;
+    ROS_WARN("sweep_min_lateral_dist too low, sweep_min_lateral_dist set to %2.2f", sweep_min_lateral_dist);
+
+  }
+
+  if(vinspection_min_ceiling_dist < 1.5){
+
+    vinspection_min_ceiling_dist = 1.5;
+    ROS_WARN("vinspection_min_ceiling_dist too low, sweep_min_lateral_dist set to %2.2f", vinspection_min_ceiling_dist);
 
   }
 
@@ -212,6 +231,18 @@ void MissionManager::minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& rang
 void MissionManager::minDistanceRightClb(const sensor_msgs::Range::ConstPtr& range_msg){
 
   min_dist_right = range_msg->range;
+
+}
+
+void MissionManager::minDistanceUpClb(const sensor_msgs::Range::ConstPtr& range_msg){
+
+  min_dist_up = range_msg->range;
+
+}
+
+void MissionManager::minDistanceDownClb(const sensor_msgs::Range::ConstPtr& range_msg){
+
+  min_dist_down = range_msg->range;
 
 }
 
@@ -245,7 +276,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(sweep_wall_to_wall){
 
-    sweep_y_increment = sweep_wall_to_wall_incr; // horizontal increment for the wall-to-wall sweeping
+    sweep_y_increment = std::min(sweep_wall_to_wall_lateral_incr, min_dist_right - sweep_min_lateral_dist); // horizontal increment for the wall-to-wall sweeping
 
   }else{
 
@@ -455,8 +486,15 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
 
   }
 
-  if((vinspection_z_increment > vinspection_z_size) || (vinspection_z_increment == 0.0)) vinspection_z_increment = vinspection_z_size;
+  if(vinspection_to_ceiling){
 
+    vinspection_z_increment = std::min(vinspection_to_ceiling_vertical_incr, min_dist_up - vinspection_min_ceiling_dist); // vertical increment for the vertical inspection up to ceiling
+
+  }else{
+
+    if((vinspection_z_increment > vinspection_z_size) || (vinspection_z_increment == 0.0)) vinspection_z_increment = vinspection_z_size;
+
+  }
   // request control to the Safety Manager
   srv_mav_behaviours::RequestControl request_control;
   request_control_client_.call(request_control);
@@ -860,7 +898,15 @@ void MissionManager::performSweep(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < WP_error){ // the WP has been reached
+  if(min_dist_down < min_height){
+
+    ROS_WARN("Obstacle below the MAV");
+
+    performing_sweep = false;
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+
+  } else if(errorWP < WP_error){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -880,8 +926,9 @@ void MissionManager::performSweep(){
 
       }else{// wall-to-wall sweeping
 
-        if(((sweep_state == 0) && (min_dist_right < (sweep_min_dist + WP_error))) || 
-            ((sweep_state == 2) && (min_dist_left < (sweep_min_dist + WP_error)))) { // wall found
+        double lateral_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
+
+        if(lateral_dist < (sweep_min_lateral_dist + WP_error)) { // wall found
 
           sweep_state ++;
           sweep_state = sweep_state%4;
@@ -931,7 +978,7 @@ void MissionManager::performSweep(){
 
       if(!sweep_wall_to_wall){
 
-        if((sweep_y_accumulated+sweep_y_increment) > sweep_y_size){
+        if((sweep_y_accumulated + sweep_y_increment) > sweep_y_size){
 
           robot_incr_y = sweep_y_size - sweep_y_accumulated; // the remaining displacement (lower than sweep_y_increment)
 
@@ -941,8 +988,10 @@ void MissionManager::performSweep(){
 
         double wall_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
 
-        if((wall_dist - WP_error - sweep_y_increment) < sweep_min_dist){
-          robot_incr_y = wall_dist - WP_error - sweep_min_dist; // the remaining displacement (lower than sweep_y_increment)
+        if((wall_dist - WP_error - sweep_y_increment) < sweep_min_lateral_dist){
+
+          robot_incr_y = wall_dist - WP_error - sweep_min_lateral_dist; // the remaining displacement (lower than sweep_y_increment)
+
         }
       }
 
@@ -984,7 +1033,15 @@ void MissionManager::performVerticalInspection(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < WP_error){ // the WP has been reached
+  if(min_dist_down < min_height){
+
+    ROS_WARN("Obstacle below the MAV");
+
+    performing_vinspection = false;
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
+
+  } else if(errorWP < WP_error){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -992,23 +1049,48 @@ void MissionManager::performVerticalInspection(){
 
       vinspection_z_accumulated += vinspection_z_increment;
 
-      if (vinspection_z_accumulated >= vinspection_z_size){ // vertical movement finished
+      if(!vinspection_to_ceiling){
 
-        vinspection_state ++;
-        vinspection_state = vinspection_state%3;
-        vinspection_z_accumulated = 0.0;
+        if (vinspection_z_accumulated >= vinspection_z_size){ // vertical movement finished
 
-        if (vinspection_state == 0){ // the state says to go up again
-          
-          ROS_WARN("Vertical inspection finised");
+          vinspection_state ++;
+          vinspection_state = vinspection_state%3;
+          vinspection_z_accumulated = 0.0;
 
-          performing_vinspection = false;
-          vinspection_status = 0;
-          nh_.setParam("vinspection_status", vinspection_status);
+          if (vinspection_state == 0){ // the state says to go up again
+            
+            ROS_WARN("Vertical inspection finised");
 
-        }
+            performing_vinspection = false;
+            vinspection_status = 0;
+            nh_.setParam("vinspection_status", vinspection_status);
 
-      } //else: keep going in that direction
+          }
+
+        } //else: keep going in that direction
+
+      }else{// vertical inspection up-to-ceiling
+
+        if(((vinspection_state == 0) && (min_dist_up < (vinspection_min_ceiling_dist + WP_error))) || 
+            ((vinspection_state == 2) && (current_z <= final_z_vinspection))){
+
+          vinspection_state ++;
+          vinspection_state = vinspection_state%3;
+          vinspection_z_accumulated = 0.0;
+
+          if (vinspection_state == 0){ // the state says to go up again
+            
+            ROS_WARN("Vertical inspection finised");
+
+            performing_vinspection = false;
+            vinspection_status = 0;
+            nh_.setParam("vinspection_status", vinspection_status);
+
+          }
+
+        } //else: keep going in that direction
+
+      }
 
     } else{ // going to the right
 
@@ -1029,31 +1111,45 @@ void MissionManager::performVerticalInspection(){
       WP_x = WP_x + world_incr.getX();
       WP_y = WP_y + world_incr.getY();
 
-    }else if(vinspection_state == 0){ //lets go up
+    }else if(((vinspection_state == 0) && performing_vinspection) || (vinspection_state == 2)){ // going up (and not restarting after finishing) or going down
+      
+      double robot_incr_z = vinspection_z_increment;
 
-      if (performing_vinspection){ // to prevent updating the WP_z after finishing
+      if(!vinspection_to_ceiling){
 
-        if((vinspection_z_accumulated+vinspection_z_increment) > vinspection_z_size){
+        if((vinspection_z_accumulated + vinspection_z_increment) > vinspection_z_size){
+          
+          robot_incr_z = vinspection_z_size - vinspection_z_accumulated; // the remaining displacement (lower than vinspection_z_increment)
+        }
 
-          WP_z = WP_z + vinspection_z_size - vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
+        if(vinspection_state == 2){ // lets go down
 
-        }else{
-
-          WP_z = WP_z + vinspection_z_increment;
+          robot_incr_z = -robot_incr_z;
 
         }
 
-      } 
+        WP_z = WP_z + robot_incr_z;
 
-    }else{ //lets go down
+      }else{// vert. inspection up-to-ceiling
 
-      if((vinspection_z_accumulated+vinspection_z_increment) > vinspection_z_size){
+        if (sweep_state == 0){ // going up
 
-        WP_z = WP_z - vinspection_z_size + vinspection_z_accumulated; // the remaining displacement (lower than sweep_y_increment)
+          if((min_dist_up - WP_error - sweep_z_increment) < vinspection_min_ceiling_dist){
+            robot_incr_z = min_dist_up - WP_error - vinspection_min_ceiling_dist; // the remaining displacement (lower than sweep_y_increment)
+          }
 
-      }else{
+          WP_z = WP_z + robot_incr_z;
 
-        WP_z = WP_z - vinspection_z_increment;
+        }else{ // going down 
+
+          WP_z = WP_z + robot_incr_z;
+
+          if((current_z - WP_error - vinspection_z_increment) < final_z_vinspection){
+            
+            WP_z = final_z_vinspection;
+            
+          }
+        }
 
       }
 
