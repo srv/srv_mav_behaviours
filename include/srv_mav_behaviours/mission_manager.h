@@ -86,6 +86,7 @@ class MissionManager {
   double final_z_sweep;
   int sweep_state;
   int sweep_status;
+  bool sweep_reaching_end;
 
   double vinspection_y_size, vinspection_z_size, vinspection_z_increment;
   bool vinspection_to_ceiling;
@@ -95,6 +96,7 @@ class MissionManager {
   double final_z_vinspection;
   int vinspection_state;
   int vinspection_status;
+  bool vinspection_reaching_end;
 
   double home_x, home_y, home_z;
 

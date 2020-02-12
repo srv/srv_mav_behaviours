@@ -319,6 +319,8 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     sweep_state = 0; // going to the right
     ROS_WARN("Starting new sweep");
 
+    sweep_reaching_end = false;
+
     //stop all the other behaviours
     nh_.setParam("hovering", false);
     nh_.setParam("going_home", false);
@@ -519,6 +521,8 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
   
     vinspection_state = 0; // going up
     ROS_WARN("Starting new vertical inspection");
+
+    vinspection_reaching_end = false;
 
     //stop all the other behaviours
     nh_.setParam("hovering", false);
@@ -895,7 +899,7 @@ void MissionManager::performSweep(){
   double errorX = WP_x-current_x;
   double errorY = WP_y-current_y;
   double errorZ = WP_z-current_z;
-
+  double errorXY = sqrt(errorX*errorX + errorY*errorY);
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
   if(min_dist_down < min_height){
@@ -926,13 +930,16 @@ void MissionManager::performSweep(){
 
       }else{// wall-to-wall sweeping
 
-        double lateral_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
+        // double lateral_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
 
-        if(lateral_dist < (sweep_min_lateral_dist + WP_error)) { // wall found
+        // if(lateral_dist < (sweep_min_lateral_dist + WP_error)) { // wall found
+
+        if(sweep_reaching_end){
 
           sweep_state ++;
           sweep_state = sweep_state%4;
           sweep_y_accumulated = 0.0;
+          sweep_reaching_end = false;
 
         }//else: keep going in that direction
       }
@@ -988,9 +995,10 @@ void MissionManager::performSweep(){
 
         double wall_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
 
-        if((wall_dist - WP_error - sweep_y_increment) < sweep_min_lateral_dist){
+        if((wall_dist - errorXY - sweep_y_increment) < sweep_min_lateral_dist){
 
-          robot_incr_y = wall_dist - WP_error - sweep_min_lateral_dist; // the remaining displacement (lower than sweep_y_increment)
+          robot_incr_y = wall_dist - errorXY - sweep_min_lateral_dist; // the remaining displacement (lower than sweep_y_increment)
+          sweep_reaching_end = true;
 
         }
       }
@@ -1071,8 +1079,10 @@ void MissionManager::performVerticalInspection(){
 
       }else{// vertical inspection up-to-ceiling
 
-        if(((vinspection_state == 0) && (min_dist_up < (vinspection_min_ceiling_dist + WP_error))) || 
-            ((vinspection_state == 2) && (current_z <= final_z_vinspection))){
+        // if(((vinspection_state == 0) && (min_dist_up < (vinspection_min_ceiling_dist + WP_error))) || 
+        //     ((vinspection_state == 2) && (current_z <= final_z_vinspection))){
+
+        if(vinspection_reaching_end){
 
           vinspection_state ++;
           vinspection_state = vinspection_state%3;
@@ -1088,11 +1098,13 @@ void MissionManager::performVerticalInspection(){
 
           }
 
+          vinspection_reaching_end = false;
+
         } //else: keep going in that direction
 
       }
 
-    } else{ // going to the right
+    }else{ // going to the right
 
       vinspection_state = 2; //lets go down
 
@@ -1134,19 +1146,23 @@ void MissionManager::performVerticalInspection(){
 
         if (sweep_state == 0){ // going up
 
-          if((min_dist_up - WP_error - sweep_z_increment) < vinspection_min_ceiling_dist){
-            robot_incr_z = min_dist_up - WP_error - vinspection_min_ceiling_dist; // the remaining displacement (lower than sweep_y_increment)
+          if((min_dist_up - errorZ - sweep_z_increment) < vinspection_min_ceiling_dist){
+
+            robot_incr_z = min_dist_up - errorZ - vinspection_min_ceiling_dist; // the remaining displacement (lower than sweep_y_increment)
+            vinspection_reaching_end = true;
+
           }
 
           WP_z = WP_z + robot_incr_z;
 
         }else{ // going down 
 
-          WP_z = WP_z + robot_incr_z;
+          WP_z = WP_z - robot_incr_z;
 
-          if((current_z - WP_error - vinspection_z_increment) < final_z_vinspection){
+          if((current_z - errorZ - vinspection_z_increment) < final_z_vinspection){
             
             WP_z = final_z_vinspection;
+            vinspection_reaching_end = true;
             
           }
         }
