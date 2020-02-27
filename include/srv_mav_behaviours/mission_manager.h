@@ -72,7 +72,7 @@ class MissionManager {
 
   double min_dist_left, min_dist_right, min_dist_up, min_dist_down;
 
-  bool position_control_granted, position_controllers_enabled;
+  bool position_controllers_enabled;
 
   double WP_x, WP_y, WP_z;
 

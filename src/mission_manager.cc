@@ -86,7 +86,6 @@ void MissionManager::configure(){
 
   min_dist_left = min_dist_right = min_dist_up = min_dist_down = INFINITY;
 
-  position_control_granted = false;
   nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
 
   position_controllers_enabled = false;
@@ -292,8 +291,6 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(request_control.response.allowed){ // start the sweep
 
-    position_control_granted = true;
-
     //the sweep starts from the top left corner
 
     //compute the first displacement
@@ -344,7 +341,6 @@ bool MissionManager::stopSweep(std_srvs::Empty::Request &req, std_srvs::Empty::R
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
   }else if(sweep_status == 2){ // the last sweeping is paused
 
@@ -374,7 +370,6 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
     // save WP to allow resuming the sweeping
     pausedSW_WP_x = WP_x;
@@ -399,8 +394,6 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
     request_control_client_.call(request_control);
 
     if(request_control.response.allowed){ // resume the sweep
-
-      position_control_granted = true;
 
       //recompute the WP with the current orientation
 
@@ -503,8 +496,6 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
 
   if(request_control.response.allowed){ // start the vertical inspection
 
-    position_control_granted = true;
-
     //the vertical inspection starts from the bottom left corner
 
     //compute the first WP
@@ -547,7 +538,6 @@ bool MissionManager::stopVerticalInspection(std_srvs::Empty::Request &req, std_s
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
   }else if(vinspection_status == 2){ // the last vertical inspection is paused
 
@@ -577,7 +567,6 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
     // save WP to allow resuming the vertical inspection
     pausedSW_WP_x = WP_x;
@@ -602,8 +591,6 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
     request_control_client_.call(request_control);
 
     if(request_control.response.allowed){ // resume the vertical inspection
-
-      position_control_granted = true;
 
       //recompute the WP with the current orientation
 
@@ -680,8 +667,6 @@ void MissionManager::performHovering(){
 
   if(request_control.response.allowed){ // hover
 
-    position_control_granted = true;
-
     nh_.setParam("hovering", true);
 
     //stop all other behaviours
@@ -742,8 +727,6 @@ void MissionManager::performGoHome(){
 
   if(request_control.response.allowed){ // go home
 
-    position_control_granted = true;
-
     nh_.setParam("going_home", true);
 
     //stop all other behaviours
@@ -803,6 +786,17 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   if(!(pose_received)) return;
 
+  if(min_dist_down < min_height){
+
+    ROS_WARN("Obstacle below the MAV");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpControl give_up_control;
+    give_up_control_client_.call(give_up_control);
+
+  }
+
+  bool position_control_granted;
   nh_.getParam("position_control_granted", position_control_granted);
 
   if (!position_control_granted){//stop all the behaviours
@@ -902,15 +896,7 @@ void MissionManager::performSweep(){
   double errorXY = sqrt(errorX*errorX + errorY*errorY);
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(min_dist_down < min_height){
-
-    ROS_WARN("Obstacle below the MAV");
-
-    performing_sweep = false;
-    sweep_status = 0;
-    nh_.setParam("sweep_status", sweep_status);
-
-  } else if(errorWP < WP_error){ // the WP has been reached
+  if(errorWP < WP_error){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -1027,7 +1013,6 @@ void MissionManager::performSweep(){
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
   }
 
@@ -1041,15 +1026,7 @@ void MissionManager::performVerticalInspection(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(min_dist_down < min_height){
-
-    ROS_WARN("Obstacle below the MAV");
-
-    performing_vinspection = false;
-    vinspection_status = 0;
-    nh_.setParam("vinspection_status", vinspection_status);
-
-  } else if(errorWP < WP_error){ // the WP has been reached
+  if(errorWP < WP_error){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -1178,7 +1155,6 @@ void MissionManager::performVerticalInspection(){
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
-    position_control_granted = false;
 
   }
 
