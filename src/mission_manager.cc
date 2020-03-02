@@ -1044,8 +1044,6 @@ void MissionManager::performVerticalInspection(){
 
   if(errorWP < WP_error){ // the WP has been reached
 
-    ROS_INFO("----------vinspection_state: %d",vinspection_state);
-
     // update the sweep_state if necessary
 
     if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
@@ -1153,7 +1151,6 @@ void MissionManager::performVerticalInspection(){
         }else{ // going down 
 
           WP_z = WP_z - robot_incr_z;
-          ROS_INFO("----------WP_Z: %2.2f",WP_z);
 
           if((current_z - errorZ - vinspection_z_increment) < final_z_vinspection){
             
