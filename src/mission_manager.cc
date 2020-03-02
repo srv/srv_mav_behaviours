@@ -1139,7 +1139,7 @@ void MissionManager::performVerticalInspection(){
 
       }else{// vert. inspection up-to-ceiling
 
-        if (sweep_state == 0){ // going up
+        if (vinspection_state == 0){ // going up
 
           if((min_dist_up - errorZ - sweep_z_increment) < vinspection_min_ceiling_dist){
 
