@@ -61,9 +61,7 @@ class MissionManager {
   double min_height, max_height;
   double WP_error;
   double sweep_min_lateral_dist;
-  double sweep_wall_to_wall_lateral_incr;
   double vinspection_min_ceiling_dist;
-  double vinspection_to_ceiling_vertical_incr;
 
   // Global variables
   double current_x, current_y, current_z, current_yaw;

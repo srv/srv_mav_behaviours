@@ -42,9 +42,7 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
   home_z = config.home_z;
 
   sweep_min_lateral_dist = config.sweep_min_lateral_dist;
-  sweep_wall_to_wall_lateral_incr = config.sweep_wall_to_wall_lateral_incr;
   vinspection_min_ceiling_dist = config.vinspection_min_ceiling_dist;
-  vinspection_to_ceiling_vertical_incr = config.vinspection_to_ceiling_vertical_incr;
 
   checkParameters();
 
@@ -70,15 +68,9 @@ void MissionManager::configure(){
 
   nh_.param("sweep_min_lateral_dist", sweep_min_lateral_dist, 3.0);
   ROS_INFO("Wall-to-wall sweeping min. distance: %2.2f", sweep_min_lateral_dist);
- 
-  nh_.param("sweep_wall_to_wall_lateral_incr", sweep_wall_to_wall_lateral_incr, 1.0);
-  ROS_INFO("Wall-to-wall sweeping increment: %2.2f", sweep_wall_to_wall_lateral_incr);
 
   nh_.param("vinspection_min_ceiling_dist", vinspection_min_ceiling_dist, 3.0);
   ROS_INFO("Vert. inspection up-to-ceiling min. distance: %2.2f", vinspection_min_ceiling_dist);
-
-  nh_.param("vinspection_to_ceiling_vertical_incr", vinspection_to_ceiling_vertical_incr, 1.0);
-  ROS_INFO("Increment for the vert. inpsection up to ceiling: %2.2f", vinspection_to_ceiling_vertical_incr);
 
   checkParameters();
 
@@ -177,8 +169,6 @@ void MissionManager::checkParameters(){
   home_z = abs(home_z);
   sweep_min_lateral_dist = abs(sweep_min_lateral_dist);
   vinspection_min_ceiling_dist = abs(vinspection_min_ceiling_dist);
-  sweep_wall_to_wall_lateral_incr = abs(sweep_wall_to_wall_lateral_incr);
-  vinspection_to_ceiling_vertical_incr = abs(vinspection_to_ceiling_vertical_incr);
 
   if(min_height < 0.5){
 
@@ -268,22 +258,29 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
 
   if(((sweep_y_size <= 0.0) && !sweep_wall_to_wall) || (sweep_z_size <= 0.0)){
 
-    ROS_WARN("Sweeping dimensions must be greater than 0");
+    ROS_WARN("Unspecified sweep dimensions");
     return false;
 
   }
 
   if(sweep_wall_to_wall){
 
-    sweep_y_increment = std::min(sweep_wall_to_wall_lateral_incr, min_dist_right - sweep_min_lateral_dist); // horizontal increment for the wall-to-wall sweeping
+    if(sweep_y_increment < 0.5) sweep_y_increment = 0.5;
 
   }else{
 
-    if((sweep_y_increment > sweep_y_size) || (sweep_y_increment == 0.0)) sweep_y_increment = sweep_y_size;
+    if((sweep_y_increment > sweep_y_size) || (sweep_y_increment <= 0.0)) sweep_y_increment = sweep_y_size;
 
   }
 
   if((sweep_z_increment > sweep_z_size) || (sweep_z_increment == 0.0)) sweep_z_increment = sweep_z_size;
+
+  if((min_dist_right - sweep_y_increment) < sweep_min_lateral_dist){
+
+    ROS_WARN("Too close to the wall to start a sweep");
+    return false;
+
+  }
 
   // request control to the Safety Manager
   srv_mav_behaviours::RequestControl request_control;
@@ -474,22 +471,30 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
   vinspection_z_increment = req.vertical_step;
   vinspection_to_ceiling = req.to_ceiling;
 
-  if((vinspection_y_size <= 0.0) || (vinspection_z_size <= 0.0)){
+  if((vinspection_y_size <= 0.0) || ((vinspection_z_size <= 0.0) && !vinspection_to_ceiling)){
 
-    ROS_WARN("Vertical inspectioning dimensions must be greater than 0");
+    ROS_WARN("Unspecified vertical inspection dimensions");
     return false;
 
   }
 
   if(vinspection_to_ceiling){
 
-    vinspection_z_increment = std::min(vinspection_to_ceiling_vertical_incr, min_dist_up - vinspection_min_ceiling_dist); // vertical increment for the vertical inspection up to ceiling
+    if(vinspection_z_increment < 0.5) vinspection_z_increment = 0.5;
 
   }else{
 
-    if((vinspection_z_increment > vinspection_z_size) || (vinspection_z_increment == 0.0)) vinspection_z_increment = vinspection_z_size;
+    if((vinspection_z_increment > vinspection_z_size) || (vinspection_z_increment <= 0.0)) vinspection_z_increment = vinspection_z_size;
 
   }
+
+  if((min_dist_up - vinspection_z_increment) < vinspection_min_ceiling_dist){
+
+    ROS_WARN("Too close to the ceiling to start a vertical inspection");
+    return false;
+
+  }
+
   // request control to the Safety Manager
   srv_mav_behaviours::RequestControl request_control;
   request_control_client_.call(request_control);
