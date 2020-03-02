@@ -249,6 +249,11 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     return true;
   }
 
+  if(min_dist_down < min_height){
+    ROS_WARN("Obstacle below the MAV"); 
+    return true;
+  }
+
   //load the sweeping parameters
   sweep_y_size = req.width;
   sweep_z_size = req.height;
@@ -462,6 +467,11 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
 
   if(current_z > max_height){
     ROS_WARN("Flying too high to start a vertical inspection");
+    return true;
+  }
+
+  if(min_dist_down < min_height){
+    ROS_WARN("Obstacle below the MAV"); 
     return true;
   }
 
@@ -1034,6 +1044,8 @@ void MissionManager::performVerticalInspection(){
 
   if(errorWP < WP_error){ // the WP has been reached
 
+    ROS_INFO("----------vinspection_state: %d",vinspection_state);
+
     // update the sweep_state if necessary
 
     if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
@@ -1141,6 +1153,7 @@ void MissionManager::performVerticalInspection(){
         }else{ // going down 
 
           WP_z = WP_z - robot_incr_z;
+          ROS_INFO("----------WP_Z: %2.2f",WP_z);
 
           if((current_z - errorZ - vinspection_z_increment) < final_z_vinspection){
             
