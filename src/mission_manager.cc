@@ -786,18 +786,19 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   if(!(pose_received)) return;
 
-  if(min_dist_down < min_height){
+  bool position_control_granted;
+  nh_.getParam("position_control_granted", position_control_granted);
+
+  if(position_control_granted && (min_dist_down < min_height)){
 
     ROS_WARN("Obstacle below the MAV");
 
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
+    nh_.getParam("position_control_granted", position_control_granted);
 
   }
-
-  bool position_control_granted;
-  nh_.getParam("position_control_granted", position_control_granted);
 
   if (!position_control_granted){//stop all the behaviours
 
