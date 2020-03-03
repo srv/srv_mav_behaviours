@@ -662,6 +662,8 @@ float SafetyManager::getMeanDistanceFront(){
 
   }
 
+  if(num_elem <= 0) return INFINITY; // unable to compute the distance
+
   mean_range = mean_range / num_elem;
 
   return mean_range;
@@ -687,7 +689,7 @@ float SafetyManager::getMinDistance(int direction){
   int initial_range = std::max(central_range - half_scans_attenuation,0);
   int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges);
 
-  float min_range = INFINITY;
+  float min_range = INFINITY; // unknown distance
 
   for (int i = initial_range; i <= final_range; i++){
 
@@ -743,6 +745,8 @@ double SafetyManager::getOrientationFrontMean(){
     iter ++;
 
   }
+
+  if(num_elem <= 0) return 0.0; // unable to compute the orientation
 
   double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
   double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
