@@ -47,7 +47,8 @@ class SafetyManager {
   // ROS variables
   ros::NodeHandle nh_;
 
-  ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_, height_subs_, ceiling_distance_subs_;
+  ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_;
+  ros::Subscriber back_distance_subs_, height_subs_, ceiling_distance_subs_;
   ros::Subscriber laser_scan_subs_;
   ros::Subscriber flight_status_subs_;
 
@@ -88,6 +89,8 @@ class SafetyManager {
   float laser_angle_min;
   int half_scans_attenuation;
   int laser_half_filter;
+  double distance_back;
+  bool distance_back_received;
   double height;
   bool height_received;
   double distance_ceiling;
@@ -106,6 +109,7 @@ class SafetyManager {
   void positionCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg);
+  void backDistanceClb(const sensor_msgs::Range::ConstPtr& back_distance_msg);
   void heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg);
   void ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceiling_distance_msg);
   void timerClb(const ros::TimerEvent& event);
@@ -114,6 +118,8 @@ class SafetyManager {
   void checkParameters();
   void attenuateXYProximity(double & x_vel, double & y_vel);
   void computeXYRepulsion(double & vx_rep, double & vy_rep);
+  void attenuateXProximityBack(double & x_vel);
+  void computeXRepulsionBack(double & vx_rep);
   void attenuateZProximity(double & z_vel);
   void computeZRepulsion(double & vz_rep);
   void attenuateZMaxHeight(double & z_vel);

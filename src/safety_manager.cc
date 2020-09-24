@@ -141,6 +141,7 @@ void SafetyManager::configure(){
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
   laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
+  back_distance_subs_ = nh_.subscribe("back_distance", 1, &SafetyManager::backDistanceClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
   ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
   flight_status_subs_ = nh_.subscribe("flight_status", 1, &SafetyManager::flightStatusClb, this);
@@ -326,6 +327,13 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
 }
 
+void SafetyManager::backDistanceClb(const sensor_msgs::Range::ConstPtr& back_distance_msg){
+
+  distance_back = back_distance_msg->range;
+  distance_back_received = true;
+
+}
+
 void SafetyManager::heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg){
 
   height = height_msg->z;
@@ -388,6 +396,9 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
 
+  // attenuate the desired command in X with the proximity of obstacles behind
+  attenuateXProximityBack(desired_vx);
+
   // attenuate the desired command in Z with the proximity to the ceiling
   attenuateZProximity(desired_vz);
 
@@ -397,6 +408,10 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // compute the repulsions from the surrounding obstacles
   double vx_rep, vy_rep;
   computeXYRepulsion(vx_rep, vy_rep);
+
+  // compute the repulsion from the obstacles behind
+  double vx_rep_back;
+  computeXRepulsionBack(vx_rep_back);
 
   // compute the repulsions from the ceiling
   double vz_rep;
@@ -408,7 +423,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   // compute final velocity command
   double final_vx, final_vy, final_vz, final_vyaw;
-  final_vx = desired_vx + vx_rep;
+  final_vx = desired_vx + vx_rep + vx_rep_back;
   final_vy = desired_vy + vy_rep;
   final_vz = desired_vz + vz_rep + vz_att;
   final_vyaw = desired_vyaw;
@@ -569,6 +584,36 @@ void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
 
 }
 
+void SafetyManager::attenuateXProximityBack(double & x_vel){
+
+  if(x_vel < 0.0){ // only if we want to approach the obstacle
+
+    // Ds = distance_back - min_distance_wall              --> Distance to the stop fence
+    // Dsp = std::max(0.0, Ds)                             --> Ds must be positive. If Ds is negative the attenuation is complete
+    // Da = attenuation_distance_wall - min_distance_wall  --> Distance from the attenuation fence to the stop fence
+    // P = Dsp / Da                                        --> Situation between fences given as a proportion. It P > 1 there is no attenuation
+    // attenuation = std::min(1.0, P)
+
+    double attenuation = std::min(1.0, std::max(0.0, distance_back - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
+
+    x_vel = x_vel * attenuation;
+
+  } 
+
+}
+void SafetyManager::computeXRepulsionBack(double & vx_rep){
+
+  vx_rep = 0.0;
+
+  // Dt = max(0.0, min_distance_wall-distance_back)  --> Indicates how much we have trespassed the stop fence. A negative value means no repulsion.
+  // R = K_wall_repulsion * Dt                  --> Repulsion speed 
+  // repulsion = std::min(max_speed_z, R)       --> Limit repulsion with the maximum speed allowed
+
+  // negative speed to make the MAV go back
+  vx_rep = -std::min(max_speed_xy, K_wall_repulsion * std::max(0.0, min_distance_wall-distance_back));
+
+}
+
 void SafetyManager::attenuateZProximity(double & z_vel){
 
   double attenuation = 1.0;
@@ -595,9 +640,9 @@ void SafetyManager::computeZRepulsion(double & vz_rep){
 
   vz_rep = 0.0;
 
-  // Dt = max(0.0, min_distance_ceiling-height)  --> Indicates how much we have trespassed the stop fence. A negative value means no attraction.
-  // A = K_ceiling_repulsion * Dt                --> Repulsion speed 
-  // attraction = std::min(max_speed_z, A)       --> Limit repulsion with the maximum speed allowed
+  // Dt = max(0.0, min_distance_ceiling-distance_ceiling)  --> Indicates how much we have trespassed the stop fence. A negative value means no repulsion.
+  // R = K_ceiling_repulsion * Dt                --> Repulsion speed 
+  // repulsion = std::min(max_speed_z, R)        --> Limit repulsion with the maximum speed allowed
 
   // negative speed to make the MAV descend
   vz_rep = -std::min(max_speed_z, K_ceiling_repulsion * std::max(0.0, min_distance_ceiling-distance_ceiling));
