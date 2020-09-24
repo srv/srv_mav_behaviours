@@ -118,6 +118,7 @@ void SafetyManager::configure(){
   desired_vel_received = false;
   position_ctrl_vel_received = false;
   laser_scan_received = false;
+  distance_back_received = false;
   height_received = false;
   distance_ceiling_received = false;
 
@@ -354,7 +355,7 @@ void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceili
 
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(desired_vel_received && laser_scan_received && height_received && distance_ceiling_received)) return;
+  if(!(desired_vel_received && laser_scan_received && distance_back_received && height_received && distance_ceiling_received)) return;
 
   // get the desired command
 
