@@ -610,8 +610,8 @@ void SafetyManager::computeXRepulsionBack(double & vx_rep){
   // R = K_wall_repulsion * Dt                  --> Repulsion speed 
   // repulsion = std::min(max_speed_z, R)       --> Limit repulsion with the maximum speed allowed
 
-  // negative speed to make the MAV go back
-  vx_rep = -std::min(max_speed_xy, K_wall_repulsion * std::max(0.0, min_distance_wall-distance_back));
+  // positive speed to make the MAV go forward
+  vx_rep = std::min(max_speed_xy, K_wall_repulsion * std::max(0.0, min_distance_wall-distance_back));
 
 }
 
