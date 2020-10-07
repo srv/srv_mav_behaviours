@@ -333,6 +333,11 @@ void SafetyManager::backDistanceClb(const sensor_msgs::Range::ConstPtr& back_dis
   distance_back = back_distance_msg->range;
   distance_back_received = true;
 
+  if(distance_back < 0.5){
+    ROS_WARN("US back detecting some MAV component");
+    distance_back = back_distance_msg->min_range;
+  }
+
 }
 
 void SafetyManager::heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg){
