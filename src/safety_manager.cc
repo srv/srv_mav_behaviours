@@ -335,7 +335,7 @@ void SafetyManager::backDistanceClb(const sensor_msgs::Range::ConstPtr& back_dis
 
   if(distance_back < 0.35){
     ROS_WARN("US back detecting some MAV component");
-    distance_back = back_distance_msg->min_range;
+    distance_back = back_distance_msg->max_range;
   }
 
 }
