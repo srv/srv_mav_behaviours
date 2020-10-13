@@ -323,6 +323,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     //stop all the other behaviours
     nh_.setParam("hovering", false);
     nh_.setParam("going_home", false);
+    nh_.setParam("going_to_point", false);
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
@@ -441,6 +442,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       //stop all the other behaviours
       nh_.setParam("hovering", false);
       nh_.setParam("going_home", false);
+      nh_.setParam("going_to_point", false);
       performing_vinspection = false;
       vinspection_status = 0;
       nh_.setParam("vinspection_status", vinspection_status);
@@ -533,6 +535,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     //stop all the other behaviours
     nh_.setParam("hovering", false);
     nh_.setParam("going_home", false);
+    nh_.setParam("going_to_point", false);
     performing_sweep = false;
     sweep_status = 0;
     nh_.setParam("sweep_status", sweep_status);
@@ -651,6 +654,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       //stop all the other behaviours
       nh_.setParam("hovering", false);
       nh_.setParam("going_home", false);
+      nh_.setParam("going_to_point", false);
       performing_sweep = false;
       sweep_status = 0;
       nh_.setParam("sweep_status", sweep_status);
@@ -686,6 +690,7 @@ void MissionManager::performHovering(){
 
     //stop all other behaviours
     nh_.setParam("going_home", false);
+    nh_.setParam("going_to_point", false);
 
     if(performing_sweep){//pause the sweeping in course (if any)
 
@@ -745,6 +750,7 @@ void MissionManager::performGoHome(){
     nh_.setParam("going_home", true);
 
     //stop all other behaviours
+    nh_.setParam("going_to_point", false);
     nh_.setParam("hovering", false);
     performing_sweep = false;
     sweep_status = 0;
@@ -783,12 +789,47 @@ bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Res
 
 bool MissionManager::savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_mav_behaviours::SavePoint::Response &res){
 
+  // save current_x, current_y and current_z
+
   return true;
 }
 
 bool MissionManager::goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res){
 
+  performGoToPoint(req.x, req.y, req.z);
+
   return true;
+}
+
+void MissionManager::performGoToPoint(double point_x, double point_y, double point_z){
+
+  // request control to the Safety Manager
+  srv_mav_behaviours::RequestControl request_control;
+  request_control_client_.call(request_control);
+
+  if(request_control.response.allowed){ // go to point
+
+    nh_.setParam("going_to_point", true);
+
+    //stop all other behaviours
+    nh_.setParam("going_home", false);
+    nh_.setParam("hovering", false);
+    performing_sweep = false;
+    sweep_status = 0;
+    nh_.setParam("sweep_status", sweep_status);
+    performing_vinspection = false;
+    vinspection_status = 0;
+    nh_.setParam("vinspection_status", vinspection_status);
+
+    ROS_WARN("Going to point: %2.2f, %2.2f, %2.2f", point_x, point_y, point_z);
+
+    //update the WP to the received point
+    WP_x = point_x;
+    WP_y = point_y;
+    WP_z = point_z;
+
+  }
+
 }
 
 void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
@@ -858,6 +899,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     //stop all the other behaviours
     nh_.setParam("hovering", false);
     nh_.setParam("going_home", false);
+    nh_.setParam("going_to_point", false);
 
   }
 
