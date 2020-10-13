@@ -35,6 +35,8 @@
 #include <srv_mav_behaviours/RequestControl.h>
 #include <srv_mav_behaviours/GiveUpControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
+#include <srv_mav_behaviours/GoToPoint.h>
+#include <srv_mav_behaviours/SavePoint.h>
 
 namespace srv_mav_behaviours {
 
@@ -104,6 +106,7 @@ class MissionManager {
   ros::ServiceServer start_vertical_inspection_srv_, stop_vertical_inspection_srv_, pause_vertical_inspection_srv_, resume_vertical_inspection_srv_;
   ros::ServiceServer hover_srv_;
   ros::ServiceServer go_home_srv_, set_home_srv_;
+  ros::ServiceServer save_point_, go_to_point_;
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::mission_managerConfig &config, uint32_t level);
@@ -120,6 +123,8 @@ class MissionManager {
   bool hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_mav_behaviours::SavePoint::Response &res);
+  bool goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res);
 
   // Callbacks
   void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);

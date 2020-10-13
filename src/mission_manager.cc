@@ -781,6 +781,16 @@ bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Res
   return true;
 }
 
+bool MissionManager::savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_mav_behaviours::SavePoint::Response &res){
+
+  return true;
+}
+
+bool MissionManager::goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res){
+
+  return true;
+}
+
 void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
 
   current_x = pose_msg->pose.pose.position.x;
