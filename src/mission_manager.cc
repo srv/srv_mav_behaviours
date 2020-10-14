@@ -151,6 +151,8 @@ void MissionManager::configure(){
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
   go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
   set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
+  save_point_srv_ = nh_.advertiseService("save_point", &MissionManager::savePoint, this);
+  go_to_point_srv_ = nh_.advertiseService("go_to_point", &MissionManager::goToPoint, this);
 
   //Service clients
   request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");

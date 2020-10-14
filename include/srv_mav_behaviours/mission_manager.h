@@ -106,7 +106,7 @@ class MissionManager {
   ros::ServiceServer start_vertical_inspection_srv_, stop_vertical_inspection_srv_, pause_vertical_inspection_srv_, resume_vertical_inspection_srv_;
   ros::ServiceServer hover_srv_;
   ros::ServiceServer go_home_srv_, set_home_srv_;
-  ros::ServiceServer save_point_, go_to_point_;
+  ros::ServiceServer save_point_srv_, go_to_point_srv_;
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::mission_managerConfig &config, uint32_t level);
