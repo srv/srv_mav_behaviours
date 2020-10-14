@@ -297,10 +297,6 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
 
   }
 
-  if(good_ranges == 0){
-    ROS_WARN("DIVISION POR CERO EN 0!!!!!!!!!!!!!!!!!");
-  }
-
   if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
 
     if(good_ranges == 0){
