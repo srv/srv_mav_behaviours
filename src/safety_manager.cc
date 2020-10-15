@@ -272,6 +272,10 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg){
 
+  if((laser_scan_received)&&(laser_scan_msg->ranges.size() != (unsigned int)laser_num_ranges)){
+    ROS_WARN("CAMBIO EN EL TAMAÑO DEL SCAN!!! -> %d != %d",(int)(laser_scan_msg->ranges.size()),laser_num_ranges);
+  }
+
   laser_scan = *laser_scan_msg;
 
   if(!laser_scan_received){
