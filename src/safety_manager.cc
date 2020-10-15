@@ -272,6 +272,9 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg){
 
+  ROS_WARN("IN--------------------LS_CALLBACK");
+  ROS_WARN("TAMAÑO DEL SCAN -> %d",(int)(laser_scan_msg->ranges.size());
+
   if((laser_scan_received)&&(laser_scan_msg->ranges.size() != (unsigned int)laser_num_ranges)){
     ROS_WARN("CAMBIO EN EL TAMAÑO DEL SCAN!!! -> %d != %d",(int)(laser_scan_msg->ranges.size()),laser_num_ranges);
   }
@@ -340,6 +343,8 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   laser_pub_.publish(laser_scan);
 
   laser_scan_received = true;
+
+  ROS_WARN("OUT----------------LS_CALLBACK");
 
 }
 
