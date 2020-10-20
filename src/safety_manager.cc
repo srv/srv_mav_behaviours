@@ -391,6 +391,8 @@ void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceili
 
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
+  ROS_WARN("IN----------------TIMER_CALLBACK");
+
   if(!(desired_vel_received && laser_scan_received && distance_back_received && height_received && distance_ceiling_received)) return;
 
   // get the desired command
@@ -429,6 +431,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
     }
 
   }
+
+  ROS_WARN("1-- Prior cmd computation---------------------------------");
 
   // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
@@ -487,6 +491,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   twist_pub_.publish(final_twist);
 
+  ROS_WARN("2-- Prior getMeanDistanceFront---------------------------------");
+
   // compute and publish the mean distance to the front wall
 
   sensor_msgs::RangePtr range_mean_front(new sensor_msgs::Range);
@@ -498,12 +504,16 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_mean_front->range = getMeanDistanceFront();
   mean_dist_front_pub_.publish(range_mean_front);
 
+  ROS_WARN("3-- Prior getMinDistance 1---------------------------------");
+
   // compute and publish the minimum distance to the front
 
   sensor_msgs::RangePtr range_min_front(new sensor_msgs::Range);
   range_min_front = range_mean_front;
   range_min_front->range = getMinDistance(1);
   min_dist_front_pub_.publish(range_min_front);
+
+  ROS_WARN("4-- Prior getMinDistance 2---------------------------------");
 
   // compute and publish the minimum distance to the left
 
@@ -512,6 +522,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_left->range = getMinDistance(2);
   min_dist_left_pub_.publish(range_min_left);
 
+  ROS_WARN("5-- Prior getMinDistance 3---------------------------------");
+
   // compute and publish the minimum distance to the right
 
   sensor_msgs::RangePtr range_min_right(new sensor_msgs::Range);
@@ -519,17 +531,23 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_right->range = getMinDistance(0);
   min_dist_right_pub_.publish(range_min_right);
 
+  ROS_WARN("6-- Prior getOrientationFrontMain---------------------------------");
+
   // compute and publish the main orientation regarding the front wall
 
   std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
   main_ori_front->data = getOrientationFrontMain();
   main_ori_pub_.publish(main_ori_front);
 
+  ROS_WARN("7-- Prior getOrientationFrontMean---------------------------------");
+
   // compute and publish the mean orientation regarding the front wall
 
   std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
   mean_ori_front->data = getOrientationFrontMean();
   mean_ori_pub_.publish(mean_ori_front);
+
+  ROS_WARN("OUT----------------TIMER_CALLBACK");  
 
 }
 
