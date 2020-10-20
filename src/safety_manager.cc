@@ -111,6 +111,11 @@ void SafetyManager::configure(){
   nh_.param("K_max_height_attraction", K_max_height_attraction, 1.0);
   ROS_INFO("K_max_height_attraction: %2.2f", K_max_height_attraction); //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
 
+  nh_.param("use_backward_US", use_backward_US_repulsion, true);
+  if(!use_backward_US_repulsion){
+    ROS_WARN("Backward US is not used for collision avoidance");
+  }
+
   checkParameters();
 
   flight_status = 0;
@@ -118,7 +123,11 @@ void SafetyManager::configure(){
   desired_vel_received = false;
   position_ctrl_vel_received = false;
   laser_scan_received = false;
-  distance_back_received = false;
+  if(use_backward_US_repulsion){
+    distance_back_received = false;
+  }else{
+    distance_back_received = true;
+  }
   height_received = false;
   distance_ceiling_received = false;
 
@@ -142,7 +151,9 @@ void SafetyManager::configure(){
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
   laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
-  back_distance_subs_ = nh_.subscribe("back_distance", 1, &SafetyManager::backDistanceClb, this);
+  if(use_backward_US_repulsion){
+    back_distance_subs_ = nh_.subscribe("back_distance", 1, &SafetyManager::backDistanceClb, this);
+  }
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
   ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
   flight_status_subs_ = nh_.subscribe("flight_status", 1, &SafetyManager::flightStatusClb, this);
@@ -423,7 +434,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   attenuateXYProximity(desired_vx, desired_vy);
 
   // attenuate the desired command in X with the proximity of obstacles behind
-  attenuateXProximityBack(desired_vx);
+  if(use_backward_US_repulsion) attenuateXProximityBack(desired_vx);
 
   // attenuate the desired command in Z with the proximity to the ceiling
   attenuateZProximity(desired_vz);
@@ -436,8 +447,8 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   computeXYRepulsion(vx_rep, vy_rep);
 
   // compute the repulsion from the obstacles behind
-  double vx_rep_back;
-  computeXRepulsionBack(vx_rep_back);
+  double vx_rep_back = 0.0;
+  if(use_backward_US_repulsion) computeXRepulsionBack(vx_rep_back);
 
   // compute the repulsions from the ceiling
   double vz_rep;
