@@ -896,10 +896,10 @@ double SafetyManager::getOrientationFrontMain(){
   int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
 
   int iter = 0;
-
+  int votes = 0;
   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
 
-  for (int i = initial_range; i <= final_range - offset_range; i+=range_incr){
+  for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
 
     double range1 = laser_scan.ranges[i];
     double range2 = laser_scan.ranges[i+offset_range];
@@ -917,11 +917,17 @@ double SafetyManager::getOrientationFrontMain(){
       double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
 
       angles_v[90+int(round(beta))]++;
+      votes ++;
 
     }
 
     iter+=range_incr;
 
+  }
+
+  if(votes == 0){
+    ROS_WARN("No valid ranges");
+    return 0.0;
   }
   
   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
