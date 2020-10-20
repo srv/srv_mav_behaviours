@@ -74,7 +74,7 @@ class SafetyManager {
   double K_wall_repulsion, K_ceiling_repulsion, K_max_height_attraction;
   double max_speed_xy, max_speed_z;
   int laser_filter_size;
-  bool use_backward_US_repulsion;
+  bool use_backward_US;
 
   // Global variables
   unsigned int flight_status;
