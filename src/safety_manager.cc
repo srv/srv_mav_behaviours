@@ -499,23 +499,17 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_right->range = getMinDistance(0);
   min_dist_right_pub_.publish(range_min_right);
 
-  ROS_WARN("6-- Prior getOrientationFrontMain---------------------------------");
-
   // compute and publish the main orientation regarding the front wall
 
   std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
   main_ori_front->data = getOrientationFrontMain();
   main_ori_pub_.publish(main_ori_front);
 
-  ROS_WARN("7-- Prior getOrientationFrontMean---------------------------------");
-
   // compute and publish the mean orientation regarding the front wall
 
   std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
   mean_ori_front->data = getOrientationFrontMean();
   mean_ori_pub_.publish(mean_ori_front);
-
-  ROS_WARN("OUT----------------TIMER_CALLBACK");  
 
 }
 
