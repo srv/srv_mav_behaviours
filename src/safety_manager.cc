@@ -283,13 +283,6 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg){
 
-  ROS_WARN("IN--------------------LS_CALLBACK");
-  ROS_WARN("TAMAÑO DEL SCAN -> %d",(int)(laser_scan_msg->ranges.size()));
-
-  if((laser_scan_received)&&(laser_scan_msg->ranges.size() != (unsigned int)laser_num_ranges)){
-    ROS_WARN("CAMBIO EN EL TAMAÑO DEL SCAN!!! -> %d != %d",(int)(laser_scan_msg->ranges.size()),laser_num_ranges);
-  }
-
   laser_scan = *laser_scan_msg;
 
   if(!laser_scan_received){
@@ -316,13 +309,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   }
 
   if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
-
-    if(good_ranges == 0){
-      ROS_WARN("DIVISION POR CERO EN 1!!!!!!!!!!!!!!!!!");
-    }else{
-      laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
-    }
-
+    laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
   }
 
   for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
@@ -341,12 +328,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
       good_ranges ++;
     }
     if(std::isfinite(range)){
-
-      if(good_ranges == 0){
-        ROS_WARN("DIVISION POR CERO EN 2!!!!!!!!!!!!!!!!!");
-      }else{
-        laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
-      }
+      laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
     }
 
   }
@@ -354,8 +336,6 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   laser_pub_.publish(laser_scan);
 
   laser_scan_received = true;
-
-  ROS_WARN("OUT----------------LS_CALLBACK");
 
 }
 
@@ -390,8 +370,6 @@ void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceili
 }
 
 void SafetyManager::timerClb(const ros::TimerEvent& event){
-
-  ROS_WARN("IN----------------TIMER_CALLBACK");
 
   if(!(desired_vel_received && laser_scan_received && distance_back_received && height_received && distance_ceiling_received)) return;
 
@@ -431,8 +409,6 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
     }
 
   }
-
-  ROS_WARN("1-- Prior cmd computation---------------------------------");
 
   // attenuate the desired command in XY with the proximity of obstacles
   attenuateXYProximity(desired_vx, desired_vy);
@@ -491,8 +467,6 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   twist_pub_.publish(final_twist);
 
-  ROS_WARN("2-- Prior getMeanDistanceFront---------------------------------");
-
   // compute and publish the mean distance to the front wall
 
   sensor_msgs::RangePtr range_mean_front(new sensor_msgs::Range);
@@ -504,16 +478,12 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_mean_front->range = getMeanDistanceFront();
   mean_dist_front_pub_.publish(range_mean_front);
 
-  ROS_WARN("3-- Prior getMinDistance 1---------------------------------");
-
   // compute and publish the minimum distance to the front
 
   sensor_msgs::RangePtr range_min_front(new sensor_msgs::Range);
   range_min_front = range_mean_front;
   range_min_front->range = getMinDistance(1);
   min_dist_front_pub_.publish(range_min_front);
-
-  ROS_WARN("4-- Prior getMinDistance 2---------------------------------");
 
   // compute and publish the minimum distance to the left
 
@@ -522,8 +492,6 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_left->range = getMinDistance(2);
   min_dist_left_pub_.publish(range_min_left);
 
-  ROS_WARN("5-- Prior getMinDistance 3---------------------------------");
-
   // compute and publish the minimum distance to the right
 
   sensor_msgs::RangePtr range_min_right(new sensor_msgs::Range);
@@ -531,23 +499,17 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_right->range = getMinDistance(0);
   min_dist_right_pub_.publish(range_min_right);
 
-  ROS_WARN("6-- Prior getOrientationFrontMain---------------------------------");
-
   // compute and publish the main orientation regarding the front wall
 
   std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
   main_ori_front->data = getOrientationFrontMain();
   main_ori_pub_.publish(main_ori_front);
 
-  ROS_WARN("7-- Prior getOrientationFrontMean---------------------------------");
-
   // compute and publish the mean orientation regarding the front wall
 
   std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
   mean_ori_front->data = getOrientationFrontMean();
-  mean_ori_pub_.publish(mean_ori_front);
-
-  ROS_WARN("OUT----------------TIMER_CALLBACK");  
+  mean_ori_pub_.publish(mean_ori_front); 
 
 }
 
@@ -812,7 +774,7 @@ double SafetyManager::getOrientationFrontMean(){
   int central_range = laser_num_ranges / 2;
 
   int initial_range = std::max(0, central_range - half_scans_attenuation);
-  int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
+  int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
   int iter = 0;
   double sum_X = 0.0;
@@ -926,7 +888,7 @@ double SafetyManager::getOrientationFrontMain(){
   }
 
   if(votes == 0){
-    ROS_WARN("No valid ranges");
+    //ROS_DEBUG("No valid ranges");
     return 0.0;
   }
   
