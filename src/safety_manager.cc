@@ -309,7 +309,11 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   }
 
   if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
-    laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
+    if(good_ranges == 0){
+      ROS_WARN("DIVISION POR CERO EN 1!!!!!!!!!!!!!!!!!");
+    }else{
+      laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
+    }
   }
 
   for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
@@ -328,7 +332,11 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
       good_ranges ++;
     }
     if(std::isfinite(range)){
-      laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
+      if(good_ranges == 0){
+        ROS_WARN("DIVISION POR CERO EN 2!!!!!!!!!!!!!!!!!");
+      }else{
+        laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
+      }
     }
 
   }
