@@ -309,11 +309,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
   }
 
   if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
-    if(good_ranges == 0){
-      ROS_WARN("DIVISION POR CERO EN 1!!!!!!!!!!!!!!!!!");
-    }else{
-      laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
-    }
+    laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
   }
 
   for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
@@ -332,11 +328,7 @@ void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_s
       good_ranges ++;
     }
     if(std::isfinite(range)){
-      if(good_ranges == 0){
-        ROS_WARN("DIVISION POR CERO EN 2!!!!!!!!!!!!!!!!!");
-      }else{
-        laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
-      }
+      laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
     }
 
   }
@@ -507,17 +499,23 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_right->range = getMinDistance(0);
   min_dist_right_pub_.publish(range_min_right);
 
+  ROS_WARN("6-- Prior getOrientationFrontMain---------------------------------");
+
   // compute and publish the main orientation regarding the front wall
 
   std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
   main_ori_front->data = getOrientationFrontMain();
   main_ori_pub_.publish(main_ori_front);
 
+  ROS_WARN("7-- Prior getOrientationFrontMean---------------------------------");
+
   // compute and publish the mean orientation regarding the front wall
 
   std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
   mean_ori_front->data = getOrientationFrontMean();
-  mean_ori_pub_.publish(mean_ori_front); 
+  mean_ori_pub_.publish(mean_ori_front);
+
+  ROS_WARN("OUT----------------TIMER_CALLBACK");  
 
 }
 
