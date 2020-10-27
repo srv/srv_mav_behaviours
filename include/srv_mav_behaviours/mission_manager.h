@@ -100,6 +100,11 @@ class MissionManager {
 
   double home_x, home_y, home_z;
 
+  std::vector<double> saved_positions_x;
+  std::vector<double> saved_positions_y;
+  std::vector<double> saved_positions_z;
+  std::vector<std::string> saved_positions_description;
+
   // Services
   ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;

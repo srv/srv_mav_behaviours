@@ -791,7 +791,17 @@ bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Res
 
 bool MissionManager::savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_mav_behaviours::SavePoint::Response &res){
 
-  // save current_x, current_y and current_z
+  // save current_x, current_y, current_z and the description received
+
+  saved_positions_x.push_back(current_x);
+  saved_positions_y.push_back(current_y);
+  saved_positions_z.push_back(current_z);
+  saved_positions_description.push_back(req.description);
+
+  nh_.setParam("saved_positions_x", saved_positions_x);
+  nh_.setParam("saved_positions_y", saved_positions_y);
+  nh_.setParam("saved_positions_z", saved_positions_z);
+  nh_.setParam("saved_positions_description", saved_positions_description);
 
   return true;
 }
