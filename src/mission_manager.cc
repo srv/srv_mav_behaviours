@@ -798,10 +798,10 @@ bool MissionManager::savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_
   saved_positions_z.push_back(current_z);
   saved_positions_description.push_back(req.description);
 
-  nh_.setParam("saved_positions_x", saved_positions_x);
-  nh_.setParam("saved_positions_y", saved_positions_y);
-  nh_.setParam("saved_positions_z", saved_positions_z);
-  nh_.setParam("saved_positions_description", saved_positions_description);
+  nh_.setParam("saved_positions/x", saved_positions_x);
+  nh_.setParam("saved_positions/y", saved_positions_y);
+  nh_.setParam("saved_positions/z", saved_positions_z);
+  nh_.setParam("saved_positions/description", saved_positions_description);
 
   ROS_INFO("Point saved: %2.2f, %2.2f, %2.2f (%s)", current_x, current_y, current_z, req.description.c_str());
 
