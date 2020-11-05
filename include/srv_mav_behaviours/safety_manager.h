@@ -56,6 +56,7 @@ class SafetyManager {
   ros::Publisher laser_pub_;
   ros::Publisher mean_dist_front_pub_;
   ros::Publisher min_dist_front_pub_, min_dist_left_pub_, min_dist_right_pub_;
+  ros::Publisher min_dist_front_left_pub_, min_dist_front_right_pub_, min_dist_back_left_pub_, min_dist_back_right_pub_;
   ros::Publisher main_ori_pub_;
   ros::Publisher mean_ori_pub_;
 

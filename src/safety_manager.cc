@@ -144,6 +144,10 @@ void SafetyManager::configure(){
   min_dist_front_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front", 1);
   min_dist_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_left", 1);
   min_dist_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_right", 1);
+  min_dist_front_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front_left", 1);
+  min_dist_front_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front_right", 1);
+  min_dist_back_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_left", 1);
+  min_dist_back_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_right", 1);
   main_ori_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
   mean_ori_pub_ = nh_.advertise<std_msgs::Float32>("mean_orientation_front", 1);
 
@@ -482,22 +486,50 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   sensor_msgs::RangePtr range_min_front(new sensor_msgs::Range);
   range_min_front = range_mean_front;
-  range_min_front->range = getMinDistance(1);
+  range_min_front->range = getMinDistance(3);
   min_dist_front_pub_.publish(range_min_front);
 
   // compute and publish the minimum distance to the left
 
   sensor_msgs::RangePtr range_min_left(new sensor_msgs::Range);
   range_min_left = range_mean_front;
-  range_min_left->range = getMinDistance(2);
+  range_min_left->range = getMinDistance(5);
   min_dist_left_pub_.publish(range_min_left);
 
   // compute and publish the minimum distance to the right
 
   sensor_msgs::RangePtr range_min_right(new sensor_msgs::Range);
   range_min_right = range_mean_front;
-  range_min_right->range = getMinDistance(0);
+  range_min_right->range = getMinDistance(1);
   min_dist_right_pub_.publish(range_min_right);
+
+  // compute and publish the minimum distance to the front_left
+
+  sensor_msgs::RangePtr range_min_front_left(new sensor_msgs::Range);
+  range_min_front_left = range_mean_front;
+  range_min_front_left->range = getMinDistance(4);
+  min_dist_front_left_pub_.publish(range_min_front_left);
+
+  // compute and publish the minimum distance to the front_right
+
+  sensor_msgs::RangePtr range_min_front_right(new sensor_msgs::Range);
+  range_min_front_right = range_mean_front;
+  range_min_front_right->range = getMinDistance(2);
+  min_dist_front_right_pub_.publish(range_min_front_right);
+
+  // compute and publish the minimum distance to the back_left
+
+  sensor_msgs::RangePtr range_min_back_left(new sensor_msgs::Range);
+  range_min_back_left = range_mean_front;
+  range_min_back_left->range = getMinDistance(6);
+  min_dist_back_left_pub_.publish(range_min_back_left);
+
+  // compute and publish the minimum distance to the back_right
+
+  sensor_msgs::RangePtr range_min_back_right(new sensor_msgs::Range);
+  range_min_back_right = range_mean_front;
+  range_min_back_right->range = getMinDistance(0);
+  min_dist_back_right_pub_.publish(range_min_back_right);
 
   // compute and publish the main orientation regarding the front wall
 
@@ -706,7 +738,7 @@ float SafetyManager::getMeanDistanceFront(){
   int central_range = laser_num_ranges / 2;
 
   int initial_range = std::max(0, central_range - half_scans_attenuation);
-  int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
+  int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
   float mean_range = 0.0;
   int num_elem = 0;
@@ -735,21 +767,33 @@ float SafetyManager::getMeanDistanceFront(){
 float SafetyManager::getMinDistance(int direction){
 
   /*direction:
-      0--> left
-      1--> front
-      2--> right
+      0--> back_right
+      1--> right
+      2--> front_right
+      3--> front
+      4--> front_left
+      5--> left
+      6--> back_left
   */
 
   int central_range = laser_num_ranges / 2;
 
   if (direction == 0){
+    central_range = central_range - (int)(3*M_PI_4/laser_angle_incr);
+  }else if (direction == 1){
     central_range = central_range - (int)(M_PI_2/laser_angle_incr);
   }else if (direction == 2){
+    central_range = central_range - (int)(M_PI_4/laser_angle_incr);
+  }else if (direction == 4){
+    central_range = central_range + (int)(M_PI_4/laser_angle_incr);
+  }else if (direction == 5){
     central_range = central_range + (int)(M_PI_2/laser_angle_incr);
+  }else if (direction == 6){
+    central_range = central_range + (int)(3*M_PI_4/laser_angle_incr);
   }
 
   int initial_range = std::max(central_range - half_scans_attenuation,0);
-  int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges);
+  int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges-1);
 
   float min_range = INFINITY; // unknown distance
 
