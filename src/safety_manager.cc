@@ -34,16 +34,11 @@ SafetyManager::~SafetyManager(){
 
 void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level){
 
-  max_speed_xy = config.max_speed_xy;
-  max_speed_z = config.max_speed_z;
-
-  laser_filter_size = config.laser_filter_size; // size of the window used to filter the laser scan (mean filter)
-  laser_half_filter = laser_filter_size / 2; 
-  laser_filter_size = laser_half_filter * 2 + 1; // 11 --> 11; 10 --> 11 (filter size always becomes an odd number)
+  max_speed = config.max_speed;
 
   min_distance_wall = config.min_distance_wall; // minimum distance allowed from walls
   attenuation_distance_wall = config.attenuation_distance_wall; // distance from the wall in meters to start attenuating the speed
-  scan_degrees_for_attenuation = config.scan_degrees_for_attenuation; // angular sector of the laser scan considered when computing the attenuation (in degrees)
+  degrees_for_attenuation = config.degrees_for_attenuation; // angular sector of the point cloud considered when computing the attenuation (in degrees)
   K_wall_repulsion = config.K_wall_repulsion; // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
 
   min_distance_ceiling = config.min_distance_ceiling; // minimum distance allowed from the ceiling
@@ -53,12 +48,6 @@ void SafetyManager::dynReconfig(srv_mav_behaviours::safety_managerConfig &config
   max_height = config.max_height;
   attenuation_max_height = config.attenuation_max_height; // height in meters to start attenuating the vertical speed
   K_max_height_attraction = config. K_max_height_attraction; //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
-
-  if(laser_scan_received){
-    half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
-  }
-
-  laser_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
 
   checkParameters();
 
@@ -70,16 +59,11 @@ void SafetyManager::configure(){
   nh_.param("frequency", frequency, 50.0);
   ROS_INFO("Frequency: %2.2f", frequency);
 
-  nh_.param("max_speed_xy", max_speed_xy, 1.0);
-  ROS_INFO("Max_speed_xy: %2.2f", max_speed_xy);
+  nh_.param("robot_radius", robot_radius, 0.5);
+  ROS_INFO("Robot radius: %2.2f", robot_radius);
 
-  nh_.param("max_speed_z", max_speed_z, 0.7);
-  ROS_INFO("Max_speed_z: %2.2f", max_speed_z);
-
-  nh_.param("laser_filter_size", laser_filter_size, 11); // size of the window used to filter the laser scan (mean filter)
-  laser_half_filter = laser_filter_size / 2; 
-  laser_filter_size = laser_half_filter * 2 + 1; // 11 --> 11; 10 --> 11 (filter size always becomes an odd number)
-  ROS_INFO("Laser_filter_size: %d", laser_filter_size);
+  nh_.param("max_speed", max_speed, 1.0);
+  ROS_INFO("Max_speed: %2.2f", max_speed);
 
   nh_.param("min_distance_wall", min_distance_wall, 1.2); // minimum distance allowed from walls
   ROS_INFO("Min_distance_wall: %2.2f", min_distance_wall);
@@ -87,8 +71,8 @@ void SafetyManager::configure(){
   nh_.param("attenuation_distance_wall", attenuation_distance_wall, 2.0); // distance from the wall in meters to start attenuating the speed
   ROS_INFO("Attenuation_distance_wall: %2.2f", attenuation_distance_wall);
 
-  nh_.param("scan_degrees_for_attenuation", scan_degrees_for_attenuation, 40.0); // angular sector of the laser scan considered when computing the attenuation (in degrees)
-  ROS_INFO("Scan_degrees_for_attenuation: %2.2f", scan_degrees_for_attenuation);
+  nh_.param("degrees_for_attenuation", degrees_for_attenuation, 40.0); // angular sector of the point_cloud considered when computing the attenuation (in degrees)
+  ROS_INFO("Degrees_for_attenuation: %2.2f", degrees_for_attenuation);
 
   nh_.param("K_wall_repulsion", K_wall_repulsion, 1.0); // speed in m/s for the repulsion after penetrating 1 m in the forbidden area
   ROS_INFO("K_wall_repulsion: %2.2f", K_wall_repulsion);
@@ -111,27 +95,16 @@ void SafetyManager::configure(){
   nh_.param("K_max_height_attraction", K_max_height_attraction, 1.0);
   ROS_INFO("K_max_height_attraction: %2.2f", K_max_height_attraction); //speed in m/s for the attraction to the ground after trespassing 1 m the maximum height allowed
 
-  nh_.param("use_backward_US", use_backward_US, true);
-  if(!use_backward_US){
-    ROS_WARN("Backward US is not used for collision avoidance");
-  }
-
   checkParameters();
 
   flight_status = 0;
 
   desired_vel_received = false;
   position_ctrl_vel_received = false;
-  laser_scan_received = false;
-  if(use_backward_US){
-    distance_back_received = false;
-  }else{
-    distance_back_received = true;
-  }
+  point_cloud_received = false;
   height_received = false;
   distance_ceiling_received = false;
-
-  laser_distance_fov = scan_degrees_for_attenuation * M_PI / 180.0;
+  distance_ground_received = false;
 
   position_control_granted = false;
   //prevent all the autonomous behaviours
@@ -139,27 +112,27 @@ void SafetyManager::configure(){
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
-  laser_pub_ = nh_.advertise<sensor_msgs::LaserScan>("laser_obstacles", 1);
   mean_dist_front_pub_ = nh_.advertise<sensor_msgs::Range>("mean_distance_front", 1);
   min_dist_front_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front", 1);
   min_dist_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_left", 1);
   min_dist_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_right", 1);
+  min_dist_back_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back", 1);
   min_dist_front_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front_left", 1);
   min_dist_front_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front_right", 1);
   min_dist_back_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_left", 1);
   min_dist_back_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_right", 1);
   main_ori_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
   mean_ori_pub_ = nh_.advertise<std_msgs::Float32>("mean_orientation_front", 1);
+  point_cloud_pub_ = nh_.advertise<PointCloud>("obstacles", 1);
 
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
-  laser_scan_subs_ = nh_.subscribe("laser_scan", 1, &SafetyManager::laserScanClb, this);
-  if(use_backward_US){
-    back_distance_subs_ = nh_.subscribe("back_distance", 1, &SafetyManager::backDistanceClb, this);
-  }
+  point_cloud_subs_ = nh_.subscribe<PointCloud>("point_cloud", 1, &SafetyManager::pointCloudClb, this);
+
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
   ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
+  ground_distance_subs_ = nh_.subscribe("ground_distance", 1, &SafetyManager::groundDistanceClb, this);
   flight_status_subs_ = nh_.subscribe("flight_status", 1, &SafetyManager::flightStatusClb, this);
 
   // Advertising Services
@@ -170,12 +143,14 @@ void SafetyManager::configure(){
 
   // Timers
   timer_ = nh_.createTimer(ros::Duration(1.0 / frequency), &SafetyManager::timerClb, this);
+
 }
 
 void SafetyManager::checkParameters(){
 
-  max_speed_xy = abs(max_speed_xy);
-  max_speed_z = abs(max_speed_z);
+  robot_radius = abs(robot_radius);
+
+  max_speed = abs(max_speed);
 
   min_distance_wall = abs(min_distance_wall);
   attenuation_distance_wall = abs(attenuation_distance_wall);
@@ -285,73 +260,37 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 }
 
-void SafetyManager::laserScanClb(const sensor_msgs::LaserScan::ConstPtr& laser_scan_msg){
+void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
 
-  laser_scan = *laser_scan_msg;
+  // point_cloud = PointCloud(*point_cloud_msg);
 
-  if(!laser_scan_received){
-    laser_num_ranges = laser_scan.ranges.size();
-    laser_angle_incr = laser_scan.angle_increment;
-    laser_angle_min = laser_scan.angle_min;
-    half_scans_attenuation = round(scan_degrees_for_attenuation * M_PI / 180.0 / 2.0 / laser_angle_incr);
+  //remove the robot parts from the point cloud
+  pcl::ConditionOr<Point>::Ptr range_cond(new pcl::ConditionOr<Point>);//Instantiate condition pointer
+  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::GT, robot_radius)));
+  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::LT, -robot_radius)));
+  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::GT, robot_radius)));
+  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::LT, -robot_radius)));
+  //build the filter
+  pcl::ConditionalRemoval<Point> condrem;
+  condrem.setCondition(range_cond);
+  condrem.setInputCloud(point_cloud_msg);
+  condrem.setKeepOrganized(false);//Preserving the original point cloud structure means that the number of points is not reduced, and nan is used instead
+  //apply filter
+  condrem.filter(point_cloud);
+
+  if(distance_ground_received && (distance_ground < 2.0)){ //flying close to the ground
+
+    //eliminate all the ground points from the input pointcloud
+    pcl::PassThrough<Point> pass;
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(-0.2, attenuation_distance_wall);
+    pass.setInputCloud(point_cloud.makeShared());
+    pass.filter(point_cloud);
   }
 
-  float mean_range = 0.0;
-  int good_ranges  = 0;
+  point_cloud_received = true;
 
-  for (int i = 0; i <= 2*laser_half_filter; i++){
-
-    float range = laser_scan_msg->ranges[i];
-
-    if(std::isfinite(range)){
-
-      mean_range += range;
-      good_ranges ++;
-
-    }
-
-  }
-
-  if(std::isfinite(laser_scan_msg->ranges[laser_half_filter])){ // good_ranges is at least 1
-    laser_scan.ranges[laser_half_filter] = mean_range / good_ranges;
-  }
-
-  for (int i = laser_half_filter+1; i < laser_num_ranges - laser_half_filter; i++){ 
-
-    float oldRange = laser_scan_msg->ranges[i-laser_half_filter-1];
-    float newRange = laser_scan_msg->ranges[i+laser_half_filter];
-    float range = laser_scan_msg->ranges[i];
-
-    if(std::isfinite(oldRange)){
-      mean_range -= oldRange;
-      good_ranges --;
-    }
-
-    if(std::isfinite(newRange)){
-      mean_range += newRange;
-      good_ranges ++;
-    }
-    if(std::isfinite(range)){
-      laser_scan.ranges[i] = mean_range / good_ranges; // good_ranges is at least 1
-    }
-
-  }
-
-  laser_pub_.publish(laser_scan);
-
-  laser_scan_received = true;
-
-}
-
-void SafetyManager::backDistanceClb(const sensor_msgs::Range::ConstPtr& back_distance_msg){
-
-  distance_back = back_distance_msg->range;
-  distance_back_received = true;
-
-  if(distance_back < 0.35){
-    ROS_WARN("US back detecting some MAV component");
-    distance_back = back_distance_msg->max_range;
-  }
+  point_cloud_pub_.publish(point_cloud);
 
 }
 
@@ -373,9 +312,20 @@ void SafetyManager::ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceili
   distance_ceiling_received = true;
 }
 
+void SafetyManager::groundDistanceClb(const sensor_msgs::Range::ConstPtr& ground_distance_msg){
+
+  if(std::isfinite(ground_distance_msg->range)){
+    distance_ground = ground_distance_msg->range;
+  }else{
+    distance_ground = 5.0; //we received a nan or inf
+  }	 
+
+  distance_ground_received = true;
+}
+
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(desired_vel_received && laser_scan_received && distance_back_received && height_received && distance_ceiling_received)) return;
+  // if(!(desired_vel_received && point_cloud_received  && height_received && distance_ceiling_received && distance_ground_received)) return;
 
   // get the desired command
 
@@ -385,6 +335,13 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   desired_vy = user_desired_vel.linear.y;
   desired_vz = user_desired_vel.linear.z;
   desired_vyaw = user_desired_vel.angular.z;
+
+  // //TODO: remove the following 4 lines-----------------------------------------------------
+  // desired_vx = 3.0;
+  // desired_vy = 3.0;
+  // desired_vz = 1.0;
+  // desired_vyaw = 0.0;
+  // //END
 
   if(!position_control_granted){
 
@@ -415,10 +372,7 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   }
 
   // attenuate the desired command in XY with the proximity of obstacles
-  attenuateXYProximity(desired_vx, desired_vy);
-
-  // attenuate the desired command in X with the proximity of obstacles behind
-  if(use_backward_US) attenuateXProximityBack(desired_vx);
+  attenuateXYZProximity(desired_vx, desired_vy, desired_vz);
 
   // attenuate the desired command in Z with the proximity to the ceiling
   attenuateZProximity(desired_vz);
@@ -427,15 +381,10 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   attenuateZMaxHeight(desired_vz);
 
   // compute the repulsions from the surrounding obstacles
-  double vx_rep, vy_rep;
-  computeXYRepulsion(vx_rep, vy_rep);
-
-  // compute the repulsion from the obstacles behind
-  double vx_rep_back = 0.0;
-  if(use_backward_US) computeXRepulsionBack(vx_rep_back);
+  double vx_rep, vy_rep, vz_rep;
+  computeXYZRepulsion(vx_rep, vy_rep, vz_rep);
 
   // compute the repulsions from the ceiling
-  double vz_rep;
   computeZRepulsion(vz_rep);
 
   // compute the attraction to the ground when trespassing the maximum height allowed
@@ -444,22 +393,21 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   // compute final velocity command
   double final_vx, final_vy, final_vz, final_vyaw;
-  final_vx = desired_vx + vx_rep + vx_rep_back;
+  final_vx = desired_vx + vx_rep;
   final_vy = desired_vy + vy_rep;
   final_vz = desired_vz + vz_rep + vz_att;
   final_vyaw = desired_vyaw;
 
   // limit with the maximum speed allowed
 
-  double final_vxy = sqrt(final_vx*final_vx + final_vy*final_vy);
-  if (final_vxy > max_speed_xy){
+  double final_vel = sqrt(final_vx*final_vx + final_vy*final_vy + final_vz*final_vz);
+  if (final_vel > max_speed){
     
-    final_vx = (final_vx / final_vxy) * max_speed_xy;
-    final_vy = (final_vy / final_vxy) * max_speed_xy;
+    final_vx = (final_vx / final_vel) * max_speed;
+    final_vy = (final_vy / final_vel) * max_speed;
+    final_vz = (final_vz / final_vel) * max_speed;
 
   }
-  if (final_vz > max_speed_z) final_vz = max_speed_z;
-  else if (final_vz < -max_speed_z) final_vz = -max_speed_z;
 
   // publish final velocity command
 
@@ -474,13 +422,14 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   // compute and publish the mean distance to the front wall
 
   sensor_msgs::RangePtr range_mean_front(new sensor_msgs::Range);
-  range_mean_front->header = laser_scan.header;
-  range_mean_front->radiation_type = 1;
-  range_mean_front->min_range = laser_scan.range_min;
-  range_mean_front->max_range = laser_scan.range_max;
-  range_mean_front->field_of_view = laser_distance_fov;
-  range_mean_front->range = getMeanDistanceFront();
-  mean_dist_front_pub_.publish(range_mean_front);
+  range_mean_front->header.stamp = ros::Time::now();
+  // range_mean_front->header = laser_scan.header;
+  // range_mean_front->radiation_type = 1;
+  // range_mean_front->min_range = laser_scan.range_min;
+  // range_mean_front->max_range = laser_scan.range_max;
+  // range_mean_front->field_of_view = degrees_for_attenuation*3.141592/180.0;;
+  // range_mean_front->range = getMeanDistanceFront();
+  // mean_dist_front_pub_.publish(range_mean_front);
 
   // compute and publish the minimum distance to the front
 
@@ -502,6 +451,13 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_right = range_mean_front;
   range_min_right->range = getMinDistance(1);
   min_dist_right_pub_.publish(range_min_right);
+
+  // compute and publish the minimum distance to the back
+
+  sensor_msgs::RangePtr range_min_back(new sensor_msgs::Range);
+  range_min_back = range_mean_front;
+  range_min_back->range = getMinDistance(7);
+  min_dist_back_pub_.publish(range_min_back);
 
   // compute and publish the minimum distance to the front_left
 
@@ -531,45 +487,72 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_back_right->range = getMinDistance(0);
   min_dist_back_right_pub_.publish(range_min_back_right);
 
-  // compute and publish the main orientation regarding the front wall
+  // // compute and publish the main orientation regarding the front wall
 
-  std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
-  main_ori_front->data = getOrientationFrontMain();
-  main_ori_pub_.publish(main_ori_front);
+  // std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
+  // main_ori_front->data = getOrientationFrontMain();
+  // main_ori_pub_.publish(main_ori_front);
 
-  // compute and publish the mean orientation regarding the front wall
+  // // compute and publish the mean orientation regarding the front wall
 
-  std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
-  mean_ori_front->data = getOrientationFrontMean();
-  mean_ori_pub_.publish(mean_ori_front);
+  // std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
+  // mean_ori_front->data = getOrientationFrontMean();
+  // mean_ori_pub_.publish(mean_ori_front);
 
 }
 
-void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
+void SafetyManager::attenuateXYZProximity(double & x_vel, double & y_vel, double & z_vel){
 
-  double angle = atan2(y_vel, x_vel);
+  PointCloud::Ptr point_cloud_ptr = point_cloud.makeShared();
 
-  int index = round((angle - laser_angle_min) / laser_angle_incr);
+  // point_cloud_pub_.publish(point_cloud_ptr);
+  // return;
 
-  int initial_index = std::max(0, index - half_scans_attenuation);
-  int final_index = std::min(laser_num_ranges-1, index + half_scans_attenuation);
+  pcl::FrustumCulling<Point> fc;
+  fc.setInputCloud (point_cloud_ptr);
+  fc.setVerticalFOV (degrees_for_attenuation);
+  fc.setHorizontalFOV (degrees_for_attenuation);
+  fc.setNearPlaneDistance (robot_radius);
+  fc.setFarPlaneDistance (attenuation_distance_wall);
 
-  float min_range = 100.0;
+  Eigen::Quaternionf rot;
+  rot.setFromTwoVectors(Eigen::Vector3f(1.0,0.0,0.0), Eigen::Vector3f(x_vel, y_vel, z_vel));
 
-  for (int i = initial_index; i <= final_index; i++){
+  Eigen::Matrix3f mat3 = rot.toRotationMatrix();
+  Eigen::Matrix4f pose_orig = Eigen::Matrix4f::Identity();
+  pose_orig.block(0,0,3,3) = mat3;
 
-    float range = laser_scan.ranges[i];
+  Eigen::Matrix4f cam2robot;
+  cam2robot << 1, 0, 0, 0,
+               0, 0, 1, 0,
+               0,-1, 0, 0,
+               0, 0, 0, 1;
 
-    if (std::isfinite(range)){
+  Eigen::Matrix4f camera_pose = pose_orig * cam2robot; // rotate 90 degrees around the robot x axis
 
-      if (range < min_range){
+  // std::cout << "Pose orig:\n" << pose_orig << std::endl;
+  // std::cout << "cam to robot:\n" << cam2robot << std::endl;
+  // std::cout << "Camera pose:\n" << camera_pose << std::endl;
+  // std::cout << "------------------------" << std::endl;
 
-        min_range = range;
+  fc.setCameraPose(camera_pose);
+  
+  PointCloud target;
+  fc.filter (target);
 
-      }
-    }
+  // Publish the filtered point cloud
+  // point_cloud_pub_.publish(target);
+
+  //compute the closest point in the frustrum pointcloud
+  float min_range = 10000.0;
+  float dist_i;
+  for(size_t i=0; i<target.points.size(); i++){
+
+    dist_i = target.points[i].x*target.points[i].x + target.points[i].y*target.points[i].y + target.points[i].z*target.points[i].z;
+    if(dist_i < min_range) min_range = dist_i;
 
   }
+  min_range = sqrt(min_range);
 
   // Ds = min_range - min_distance_wall                  --> Distance to the stop fence
   // Dsp = std::max(0.0, Ds)                             --> Ds must be positive. If Ds is negative the attenuation is complete
@@ -579,87 +562,72 @@ void SafetyManager::attenuateXYProximity(double & x_vel, double & y_vel){
 
   double attenuation = std::min(1.0, std::max(0.0, min_range - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
 
-  /*ROS_INFO("min_range: %f", min_range);
-  ROS_INFO("Attenuation: %f", attenuation);*/
+  // ROS_INFO("min_range: %f", min_range);
+  // ROS_INFO("Attenuation: %f", attenuation);
 
   //attenuation is in [0.0, 1.0]
 
   x_vel = x_vel * attenuation;
   y_vel = y_vel * attenuation;
+  z_vel = z_vel * attenuation;
+
+  // ROS_INFO("vel: %f, %f, %f", x_vel, y_vel, z_vel);
 
 }
 
-void SafetyManager::computeXYRepulsion(double & vx_rep, double & vy_rep){
+void SafetyManager::computeXYZRepulsion(double & vx_rep, double & vy_rep, double & vz_rep){
 
-  vx_rep = vy_rep = 0.0;
+  vx_rep = vy_rep = vz_rep = 0.0;
+
   int num_rep = 0;
+  float dist_i_P2;
+  float min_distance_wall_P2 = min_distance_wall*min_distance_wall;
 
-  float angle = laser_scan.angle_min;
+  for(size_t i=0; i<point_cloud.points.size(); i++){
 
-  for(int i = 0; i < laser_num_ranges; i++){
+    dist_i_P2 = point_cloud.points[i].x*point_cloud.points[i].x + point_cloud.points[i].y*point_cloud.points[i].y + point_cloud.points[i].z*point_cloud.points[i].z;
 
-    float range = laser_scan.ranges[i];
-
-    if (std::isfinite(range)){
-
-      if(range < min_distance_wall){
+    if(dist_i_P2 < min_distance_wall_P2){
 
         // Dt = min_distance_wall-range          --> Indicates how much we have trespassed the stop fence. It is always positive.
         // R = K_wall_repulsion * Dt             --> Repulsion speed 
         // repulsion = std::min(max_speed_xy, R) --> Limit repulsion with the maximum speed allowed
 
-        double repulsion = std::min(max_speed_xy, K_wall_repulsion * (min_distance_wall-range));
+        // double repulsion = std::min(max_speed_xy, K_wall_repulsion * (min_distance_wall-sqrt(dist_i)));
+        double dist_i = sqrt(dist_i_P2);
+        double repulsion = K_wall_repulsion * (min_distance_wall-dist_i);
 
-        // repulsion is in [0.0, max_speed_xy]
+        // repulsion is in [0.0, max_speed_xy]        <-- false
+        // repulsion is in [0.0, K_wall_repulsion*Dt] <-- true
 
-        vx_rep += repulsion * cos(angle + M_PI);
-        vy_rep += repulsion * sin(angle + M_PI);
+        vx_rep -= repulsion * point_cloud.points[i].x/dist_i;
+        vy_rep -= repulsion * point_cloud.points[i].y/dist_i;
+        vz_rep -= repulsion * point_cloud.points[i].z/dist_i;
         num_rep ++;
-
-      }
-
     }
-
-    angle += laser_angle_incr;
 
   }
 
+  // compute the mean repulsion vector
   if(num_rep > 0){
 
     vx_rep = vx_rep / num_rep;
     vy_rep = vy_rep / num_rep;
+    vz_rep = vz_rep / num_rep;
 
   }
 
-}
+  // finally saturate using the max_speed parameter
+  double rep_vel = sqrt(vx_rep*vx_rep + vy_rep*vy_rep + vz_rep*vz_rep);
+  if (rep_vel > max_speed){
+    
+    vx_rep = (vx_rep / rep_vel) * max_speed;
+    vy_rep = (vy_rep / rep_vel) * max_speed;
+    vz_rep = (vz_rep / rep_vel) * max_speed;
 
-void SafetyManager::attenuateXProximityBack(double & x_vel){
+  }
 
-  if(x_vel < 0.0){ // only if we want to approach the obstacle
-
-    // Ds = distance_back - min_distance_wall              --> Distance to the stop fence
-    // Dsp = std::max(0.0, Ds)                             --> Ds must be positive. If Ds is negative the attenuation is complete
-    // Da = attenuation_distance_wall - min_distance_wall  --> Distance from the attenuation fence to the stop fence
-    // P = Dsp / Da                                        --> Situation between fences given as a proportion. It P > 1 there is no attenuation
-    // attenuation = std::min(1.0, P)
-
-    double attenuation = std::min(1.0, std::max(0.0, distance_back - min_distance_wall) / (attenuation_distance_wall - min_distance_wall));
-
-    x_vel = x_vel * attenuation;
-
-  } 
-
-}
-void SafetyManager::computeXRepulsionBack(double & vx_rep){
-
-  vx_rep = 0.0;
-
-  // Dt = max(0.0, min_distance_wall-distance_back)  --> Indicates how much we have trespassed the stop fence. A negative value means no repulsion.
-  // R = K_wall_repulsion * Dt                  --> Repulsion speed 
-  // repulsion = std::min(max_speed_z, R)       --> Limit repulsion with the maximum speed allowed
-
-  // positive speed to make the MAV go forward
-  vx_rep = std::min(max_speed_xy, K_wall_repulsion * std::max(0.0, min_distance_wall-distance_back));
+  ROS_INFO("vel: %f, %f, %f", vx_rep, vy_rep, vz_rep);
 
 }
 
@@ -694,7 +662,7 @@ void SafetyManager::computeZRepulsion(double & vz_rep){
   // repulsion = std::min(max_speed_z, R)        --> Limit repulsion with the maximum speed allowed
 
   // negative speed to make the MAV descend
-  vz_rep = -std::min(max_speed_z, K_ceiling_repulsion * std::max(0.0, min_distance_ceiling-distance_ceiling));
+  vz_rep = -std::min(max_speed, K_ceiling_repulsion * std::max(0.0, min_distance_ceiling-distance_ceiling));
 
 }
 
@@ -729,40 +697,40 @@ void SafetyManager::computeZAttraction(double & vz_att){
   // attraction = std::min(max_speed_z, A) --> Limit attraction with the maximum speed allowed
 
   // negative speed to make the MAV descend
-  vz_att = -std::min(max_speed_z, K_max_height_attraction * std::max(0.0, height-max_height));
+  vz_att = -std::min(max_speed, K_max_height_attraction * std::max(0.0, height-max_height));
 
 }
 
-float SafetyManager::getMeanDistanceFront(){
+// float SafetyManager::getMeanDistanceFront(){
 
-  int central_range = laser_num_ranges / 2;
+//   int central_range = laser_num_ranges / 2;
 
-  int initial_range = std::max(0, central_range - half_scans_attenuation);
-  int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
-  float mean_range = 0.0;
-  int num_elem = 0;
+//   float mean_range = 0.0;
+//   int num_elem = 0;
 
-  for (int i = initial_range; i <= final_range; i++){
+//   for (int i = initial_range; i <= final_range; i++){
 
-    float range = laser_scan.ranges[i];
+//     float range = laser_scan.ranges[i];
 
-    if (std::isfinite(range)){
+//     if (std::isfinite(range)){
 
-      mean_range += range;
-      num_elem ++;
+//       mean_range += range;
+//       num_elem ++;
 
-    }
+//     }
 
-  }
+//   }
 
-  if(num_elem <= 0) return INFINITY; // unable to compute the distance
+//   if(num_elem <= 0) return INFINITY; // unable to compute the distance
 
-  mean_range = mean_range / num_elem;
+//   mean_range = mean_range / num_elem;
 
-  return mean_range;
+//   return mean_range;
 
-}
+// }
 
 float SafetyManager::getMinDistance(int direction){
 
@@ -774,190 +742,458 @@ float SafetyManager::getMinDistance(int direction){
       4--> front_left
       5--> left
       6--> back_left
+      7--> back
   */
 
-  int central_range = laser_num_ranges / 2;
+  float x_comp, y_comp, z_comp;
 
   if (direction == 0){
-    central_range = central_range - (int)(3*M_PI_4/laser_angle_incr);
+    x_comp = -1.0;
+    y_comp = -1.0;
+    z_comp = 0.0;
   }else if (direction == 1){
-    central_range = central_range - (int)(M_PI_2/laser_angle_incr);
+    x_comp = 0.0;
+    y_comp = -1.0;
+    z_comp = 0.0;
   }else if (direction == 2){
-    central_range = central_range - (int)(M_PI_4/laser_angle_incr);
+    x_comp = 1.0;
+    y_comp = -1.0;
+    z_comp = 0.0;
   }else if (direction == 4){
-    central_range = central_range + (int)(M_PI_4/laser_angle_incr);
+    x_comp = 1.0;
+    y_comp = 1.0;
+    z_comp = 0.0;
   }else if (direction == 5){
-    central_range = central_range + (int)(M_PI_2/laser_angle_incr);
+    x_comp = 0.0;
+    y_comp = 1.0;
+    z_comp = 0.0;
   }else if (direction == 6){
-    central_range = central_range + (int)(3*M_PI_4/laser_angle_incr);
+    x_comp = -1.0;
+    y_comp = 1.0;
+    z_comp = 0.0;
+  }else if (direction == 7){
+    x_comp = -1.0;
+    y_comp = 0.0;
+    z_comp = 0.0;
   }
 
-  int initial_range = std::max(central_range - half_scans_attenuation,0);
-  int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges-1);
+  PointCloud::Ptr point_cloud_ptr = point_cloud.makeShared();
 
-  float min_range = INFINITY; // unknown distance
+  pcl::FrustumCulling<Point> fc;
+  fc.setInputCloud (point_cloud_ptr);
+  fc.setVerticalFOV (degrees_for_attenuation);
+  fc.setHorizontalFOV (degrees_for_attenuation);
+  fc.setNearPlaneDistance (robot_radius);
+  fc.setFarPlaneDistance (100.0);
 
-  for (int i = initial_range; i <= final_range; i++){
+  Eigen::Quaternionf rot;
+  rot.setFromTwoVectors(Eigen::Vector3f(1.0,0.0,0.0), Eigen::Vector3f(x_comp, y_comp, z_comp));
 
-    float range = laser_scan.ranges[i];
+  Eigen::Matrix3f mat3 = rot.toRotationMatrix();
+  Eigen::Matrix4f pose_orig = Eigen::Matrix4f::Identity();
+  pose_orig.block(0,0,3,3) = mat3;
 
-    if (std::isfinite(range)){
+  Eigen::Matrix4f cam2robot;
+  cam2robot << 1, 0, 0, 0,
+               0, 0, 1, 0,
+               0,-1, 0, 0,
+               0, 0, 0, 1;
 
-      min_range = std::min(range, min_range);
+  Eigen::Matrix4f camera_pose = pose_orig * cam2robot; // rotate 90 degrees around the robot x axis
 
-    }
+  // std::cout << "Pose orig:\n" << pose_orig << std::endl;
+  // std::cout << "cam to robot:\n" << cam2robot << std::endl;
+  // std::cout << "Camera pose:\n" << camera_pose << std::endl;
+  // std::cout << "------------------------" << std::endl;
+
+  fc.setCameraPose(camera_pose);
+  
+  PointCloud target;
+  fc.filter (target);
+
+  // Publish the filtered point cloud
+  // point_cloud_pub_.publish(target);
+
+  //compute the closest point in the frustrum pointcloud
+  float min_range = 10000.0;
+  float dist_i;
+  for(size_t i=0; i<target.points.size(); i++){
+
+    dist_i = target.points[i].x*target.points[i].x + target.points[i].y*target.points[i].y + target.points[i].z*target.points[i].z;
+    if(dist_i < min_range) min_range = dist_i;
 
   }
+  min_range = sqrt(min_range);
 
   return min_range;
 
 }
 
-double SafetyManager::getOrientationFrontMean(){
+// double SafetyManager::getOrientationFrontMean(){
 
-  int central_range = laser_num_ranges / 2;
+//   int central_range = laser_num_ranges / 2;
 
-  int initial_range = std::max(0, central_range - half_scans_attenuation);
-  int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
-  int iter = 0;
-  double sum_X = 0.0;
-  double sum_Y = 0.0;
-  double sum_XX = 0.0;
-  double sum_YY = 0.0;
-  double sum_XY = 0.0;
-  int num_elem = 0;
+//   int iter = 0;
+//   double sum_X = 0.0;
+//   double sum_Y = 0.0;
+//   double sum_XX = 0.0;
+//   double sum_YY = 0.0;
+//   double sum_XY = 0.0;
+//   int num_elem = 0;
 
-  for (int i = initial_range; i <= final_range; i++){
+//   for (int i = initial_range; i <= final_range; i++){
 
-    double range = laser_scan.ranges[i];
+//     double range = laser_scan.ranges[i];
 
-    if (std::isfinite(range)){
+//     if (std::isfinite(range)){
 
-      double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-      double x = range*cos(alpha);
-      double y = range*sin(alpha);
+//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+//       double x = range*cos(alpha);float SafetyManager::getMeanDistanceFront(){
 
-      sum_X += x;
-      sum_Y += y;
-      sum_XX += x*x;
-      sum_YY += y*y;
-      sum_XY += x*y;
+//   int central_range = laser_num_ranges / 2;
 
-      num_elem ++;
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
-    }
+//   float mean_range = 0.0;
+//   int num_elem = 0;
 
-    iter ++;
+//   for (int i = initial_range; i <= final_range; i++){
 
-  }
+//     float range = laser_scan.ranges[i];
 
-  if(num_elem <= 0) return 0.0; // unable to compute the orientation
+//     if (std::isfinite(range)){
 
-  double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
-  double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
-  double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
+//       mean_range += range;
+//       num_elem ++;
 
-  bool isHorizontal = sXY == 0 && sXX < sYY;
-  bool isVertical = sXY == 0 && sXX > sYY;
-  bool isIndeterminate = sXY == 0 && sXX == sYY;
-  double mav_ori;
+//     }
 
-  if (isHorizontal){
+//   }
 
-    mav_ori = 0.0;
-    ROS_INFO("wall horizontal");
+//   if(num_elem <= 0) return INFINITY; // unable to compute the distance
 
-  }else if (isVertical){
+//   mean_range = mean_range / num_elem;
 
-    ROS_INFO("wall vertical");
-    mav_ori = M_PI_2;
+//   return mean_range;
 
-  }else if (isIndeterminate){
+// }
 
-    ROS_INFO("wall indeterminate");
-    mav_ori = M_PI_2; // not real
+// float SafetyManager::getMinDistance(int direction){
 
-  }else{
+//   /*direction:
+//       0--> back_right
+//       1--> right
+//       2--> front_right
+//       3--> front
+//       4--> front_left
+//       5--> left
+//       6--> back_left
+//   */
 
-    double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
-    double slope = -sXY/(sXX-lambda);
-    mav_ori = -atan2(1.0, slope);
-    if (mav_ori < -M_PI_2) mav_ori += M_PI;
+//   int central_range = laser_num_ranges / 2;
 
-  }
+//   if (direction == 0){
+//     central_range = central_range - (int)(3*M_PI_4/laser_angle_incr);
+//   }else if (direction == 1){
+//     central_range = central_range - (int)(M_PI_2/laser_angle_incr);
+//   }else if (direction == 2){
+//     central_range = central_range - (int)(M_PI_4/laser_angle_incr);
+//   }else if (direction == 4){
+//     central_range = central_range + (int)(M_PI_4/laser_angle_incr);
+//   }else if (direction == 5){
+//     central_range = central_range + (int)(M_PI_2/laser_angle_incr);
+//   }else if (direction == 6){
+//     central_range = central_range + (int)(3*M_PI_4/laser_angle_incr);
+//   }
 
-  return mav_ori * 180.0 / M_PI;
+//   int initial_range = std::max(central_range - half_scans_attenuation,0);
+//   int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges-1);
 
-}
+//   float min_range = INFINITY; // unknown distance
 
-double SafetyManager::getOrientationFrontMain(){
+//   for (int i = initial_range; i <= final_range; i++){
 
-  int offset_range = 10;
-  int range_incr = 1;
+//     float range = laser_scan.ranges[i];
 
-  int central_range = laser_num_ranges / 2;
+//     if (std::isfinite(range)){
 
-  int initial_range = std::max(0, central_range - half_scans_attenuation);
-  int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
+//       min_range = std::min(range, min_range);
 
-  int iter = 0;
-  int votes = 0;
-  std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
+//     }
 
-  for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
+//   }
 
-    double range1 = laser_scan.ranges[i];
-    double range2 = laser_scan.ranges[i+offset_range];
+//   return min_range;
 
-    if (std::isfinite(range1) && (std::isfinite(range2))){
+// }
 
-      double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-      double x1 = range1*cos(alpha);
-      double y1 = range1*sin(alpha);
+// double SafetyManager::getOrientationFrontMean(){
 
-      alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
-      double x2 = range2*cos(alpha);
-      double y2 = range2*sin(alpha);
+//   int central_range = laser_num_ranges / 2;
 
-      double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
 
-      angles_v[90+int(round(beta))]++;
-      votes ++;
+//   int iter = 0;
+//   double sum_X = 0.0;
+//   double sum_Y = 0.0;
+//   double sum_XX = 0.0;
+//   double sum_YY = 0.0;
+//   double sum_XY = 0.0;
+//   int num_elem = 0;
 
-    }
+//   for (int i = initial_range; i <= final_range; i++){
 
-    iter+=range_incr;
+//     double range = laser_scan.ranges[i];
 
-  }
+//     if (std::isfinite(range)){
 
-  if(votes == 0){
-    //ROS_DEBUG("No valid ranges");
-    return 0.0;
-  }
+//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+//       double x = range*cos(alpha);
+//       double y = range*sin(alpha);
+
+//       sum_X += x;
+//       sum_Y += y;
+//       sum_XX += x*x;
+//       sum_YY += y*y;
+//       sum_XY += x*y;
+
+//       num_elem ++;
+
+//     }
+
+//     iter ++;
+
+//   }
+
+//   if(num_elem <= 0) return 0.0; // unable to compute the orientation
+
+//   double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
+//   double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
+//   double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
+
+//   bool isHorizontal = sXY == 0 && sXX < sYY;
+//   bool isVertical = sXY == 0 && sXX > sYY;
+//   bool isIndeterminate = sXY == 0 && sXX == sYY;
+//   double mav_ori;
+
+//   if (isHorizontal){
+
+//     mav_ori = 0.0;
+//     ROS_INFO("wall horizontal");
+
+//   }else if (isVertical){
+
+//     ROS_INFO("wall vertical");
+//     mav_ori = M_PI_2;
+
+//   }else if (isIndeterminate){
+
+//     ROS_INFO("wall indeterminate");
+//     mav_ori = M_PI_2; // not real
+
+//   }else{
+
+//     double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
+//     double slope = -sXY/(sXX-lambda);
+//     mav_ori = -atan2(1.0, slope);
+//     if (mav_ori < -M_PI_2) mav_ori += M_PI;
+
+//   }
+
+//   return mav_ori * 180.0 / M_PI;
+
+// }
+
+// double SafetyManager::getOrientationFrontMain(){
+
+//   int offset_range = 10;
+//   int range_incr = 1;
+
+//   int central_range = laser_num_ranges / 2;
+
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
+
+//   int iter = 0;
+//   int votes = 0;
+//   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
+
+//   for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
+
+//     double range1 = laser_scan.ranges[i];
+//     double range2 = laser_scan.ranges[i+offset_range];
+
+//     if (std::isfinite(range1) && (std::isfinite(range2))){
+
+//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+//       double x1 = range1*cos(alpha);
+//       double y1 = range1*sin(alpha);
+
+//       alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
+//       double x2 = range2*cos(alpha);
+//       double y2 = range2*sin(alpha);
+
+//       double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
+
+//       angles_v[90+int(round(beta))]++;
+//       votes ++;
+
+//     }
+
+//     iter+=range_incr;
+
+//   }
+
+//   if(votes == 0){
+//     //ROS_DEBUG("No valid ranges");
+//     return 0.0;
+//   }
   
-  std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
-  int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
+//   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
+//   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
 
-  // filter the output considering the neighboring bins
-  int total_samples = 0;
-  int accumulated = 0;
-  int filter_half_size = 3;
-  for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
-      if ((i >=0) && (i <=180)){
-          total_samples += angles_v[i];
-          accumulated += i*angles_v[i];
-      }
-  }
+//   // filter the output considering the neighboring bins
+//   int total_samples = 0;
+//   int accumulated = 0;
+//   int filter_half_size = 3;
+//   for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
+//       if ((i >=0) && (i <=180)){
+//           total_samples += angles_v[i];
+//           accumulated += i*angles_v[i];
+//       }
+//   }
 
-  double main_angle = 0.0;
+//   double main_angle = 0.0;
 
-  if(total_samples > 0){
-    main_angle = -90.0 + double(accumulated) / total_samples;
-  }// else the angle cannot be computed. Return 0 deg.
+//   if(total_samples > 0){
+//     main_angle = -90.0 + double(accumulated) / total_samples;
+//   }// else the angle cannot be computed. Return 0 deg.
 
-  return main_angle;
+//   return main_angle;
 
-}
+// }
+//       sum_YY += y*y;
+//       sum_XY += x*y;
+
+//       num_elem ++;
+
+//     }
+
+//     iter ++;
+
+//   }
+
+//   if(num_elem <= 0) return 0.0; // unable to compute the orientation
+
+//   double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
+//   double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
+//   double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
+
+//   bool isHorizontal = sXY == 0 && sXX < sYY;
+//   bool isVertical = sXY == 0 && sXX > sYY;
+//   bool isIndeterminate = sXY == 0 && sXX == sYY;
+//   double mav_ori;
+
+//   if (isHorizontal){
+
+//     mav_ori = 0.0;
+//     ROS_INFO("wall horizontal");
+
+//   }else if (isVertical){
+
+//     ROS_INFO("wall vertical");
+//     mav_ori = M_PI_2;
+
+//   }else if (isIndeterminate){
+
+//     ROS_INFO("wall indeterminate");
+//     mav_ori = M_PI_2; // not real
+
+//   }else{
+
+//     double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
+//     double slope = -sXY/(sXX-lambda);
+//     mav_ori = -atan2(1.0, slope);
+//     if (mav_ori < -M_PI_2) mav_ori += M_PI;
+
+//   }
+
+//   return mav_ori * 180.0 / M_PI;
+
+// }
+
+// double SafetyManager::getOrientationFrontMain(){
+
+//   int offset_range = 10;
+//   int range_incr = 1;
+
+//   int central_range = laser_num_ranges / 2;
+
+//   int initial_range = std::max(0, central_range - half_scans_attenuation);
+//   int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
+
+//   int iter = 0;
+//   int votes = 0;
+//   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
+
+//   for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
+
+//     double range1 = laser_scan.ranges[i];
+//     double range2 = laser_scan.ranges[i+offset_range];
+
+//     if (std::isfinite(range1) && (std::isfinite(range2))){
+
+//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
+//       double x1 = range1*cos(alpha);
+//       double y1 = range1*sin(alpha);
+
+//       alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
+//       double x2 = range2*cos(alpha);
+//       double y2 = range2*sin(alpha);
+
+//       double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
+
+//       angles_v[90+int(round(beta))]++;
+//       votes ++;
+
+//     }
+
+//     iter+=range_incr;
+
+//   }
+
+//   if(votes == 0){
+//     //ROS_DEBUG("No valid ranges");
+//     return 0.0;
+//   }
+  
+//   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
+//   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
+
+//   // filter the output considering the neighboring bins
+//   int total_samples = 0;
+//   int accumulated = 0;
+//   int filter_half_size = 3;
+//   for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
+//       if ((i >=0) && (i <=180)){
+//           total_samples += angles_v[i];
+//           accumulated += i*angles_v[i];
+//       }
+//   }
+
+//   double main_angle = 0.0;
+
+//   if(total_samples > 0){
+//     main_angle = -90.0 + double(accumulated) / total_samples;
+//   }// else the angle cannot be computed. Return 0 deg.
+
+//   return main_angle;
+
+// }
 
 }  // namespace srv_mav_behaviours
