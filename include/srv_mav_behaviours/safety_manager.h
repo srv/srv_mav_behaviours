@@ -35,9 +35,12 @@
 #include <srv_mav_behaviours/RequestControl.h>
 #include <srv_mav_behaviours/GiveUpControl.h>
 
+#include <tf/transform_datatypes.h>
+
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/frustum_culling.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 typedef pcl::PointXYZRGBA      Point;
 typedef pcl::PointCloud<Point> PointCloud;
@@ -62,10 +65,10 @@ class SafetyManager {
 
   ros::Publisher twist_pub_;
   ros::Publisher mean_dist_front_pub_;
+  ros::Publisher wall_ori_front_pub_;
+  ros::Publisher wall_tilt_front_pub_;
   ros::Publisher min_dist_front_pub_, min_dist_left_pub_, min_dist_right_pub_, min_dist_back_pub_;
   ros::Publisher min_dist_front_left_pub_, min_dist_front_right_pub_, min_dist_back_left_pub_, min_dist_back_right_pub_;
-  ros::Publisher main_ori_pub_;
-  ros::Publisher mean_ori_pub_;
 
   ros::Publisher point_cloud_pub_;
 
@@ -133,10 +136,12 @@ class SafetyManager {
   void computeZRepulsion(double & vz_rep);
   void attenuateZMaxHeight(double & z_vel);
   void computeZAttraction(double & vz_att);
-  float getMeanDistanceFront();
+  // float getMeanDistanceFront();
   float getMinDistance(int direction);
-  double getOrientationFrontMean();
-  double getOrientationFrontMain();
+  void getPlaneParams(double & tilt, double & skew, double & distance);
+
+  // double getOrientationFrontMean();
+  // double getOrientationFrontMain();
 
 };
 

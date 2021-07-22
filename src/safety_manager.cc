@@ -113,6 +113,8 @@ void SafetyManager::configure(){
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
   mean_dist_front_pub_ = nh_.advertise<sensor_msgs::Range>("mean_distance_front", 1);
+  wall_ori_front_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
+  wall_tilt_front_pub_ = nh_.advertise<std_msgs::Float32>("wall_tilt_front", 1);
   min_dist_front_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front", 1);
   min_dist_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_left", 1);
   min_dist_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_right", 1);
@@ -121,8 +123,6 @@ void SafetyManager::configure(){
   min_dist_front_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_front_right", 1);
   min_dist_back_left_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_left", 1);
   min_dist_back_right_pub_ = nh_.advertise<sensor_msgs::Range>("min_distance_back_right", 1);
-  main_ori_pub_ = nh_.advertise<std_msgs::Float32>("orientation_front", 1);
-  mean_ori_pub_ = nh_.advertise<std_msgs::Float32>("mean_orientation_front", 1);
   point_cloud_pub_ = nh_.advertise<PointCloud>("obstacles", 1);
 
   // Subscribers
@@ -325,7 +325,7 @@ void SafetyManager::groundDistanceClb(const sensor_msgs::Range::ConstPtr& ground
 
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  // if(!(desired_vel_received && point_cloud_received  && height_received && distance_ceiling_received && distance_ground_received)) return;
+  if(!(desired_vel_received && point_cloud_received  && height_received && distance_ceiling_received && distance_ground_received)) return;
 
   // get the desired command
 
@@ -335,13 +335,6 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   desired_vy = user_desired_vel.linear.y;
   desired_vz = user_desired_vel.linear.z;
   desired_vyaw = user_desired_vel.angular.z;
-
-  // //TODO: remove the following 4 lines-----------------------------------------------------
-  // desired_vx = 3.0;
-  // desired_vy = 3.0;
-  // desired_vz = 1.0;
-  // desired_vyaw = 0.0;
-  // //END
 
   if(!position_control_granted){
 
@@ -419,17 +412,23 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   twist_pub_.publish(final_twist);
 
-  // compute and publish the mean distance to the front wall
+  // compute and publish the mean distance and orientation regarding the front wall
+
+  double tilt, skew, dis;
+  getPlaneParams(tilt, skew, dis);
+
+  std_msgs::Float32Ptr wall_ori_front(new std_msgs::Float32);
+  wall_ori_front->data = skew;
+  wall_ori_front_pub_.publish(wall_ori_front);
+
+  std_msgs::Float32Ptr wall_tilt_front(new std_msgs::Float32);
+  wall_tilt_front->data = tilt;
+  wall_tilt_front_pub_.publish(wall_tilt_front);
 
   sensor_msgs::RangePtr range_mean_front(new sensor_msgs::Range);
   range_mean_front->header.stamp = ros::Time::now();
-  // range_mean_front->header = laser_scan.header;
-  // range_mean_front->radiation_type = 1;
-  // range_mean_front->min_range = laser_scan.range_min;
-  // range_mean_front->max_range = laser_scan.range_max;
-  // range_mean_front->field_of_view = degrees_for_attenuation*3.141592/180.0;;
-  // range_mean_front->range = getMeanDistanceFront();
-  // mean_dist_front_pub_.publish(range_mean_front);
+  range_mean_front->range = dis;
+  mean_dist_front_pub_.publish(range_mean_front);
 
   // compute and publish the minimum distance to the front
 
@@ -486,18 +485,6 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
   range_min_back_right = range_mean_front;
   range_min_back_right->range = getMinDistance(0);
   min_dist_back_right_pub_.publish(range_min_back_right);
-
-  // // compute and publish the main orientation regarding the front wall
-
-  // std_msgs::Float32Ptr main_ori_front(new std_msgs::Float32);
-  // main_ori_front->data = getOrientationFrontMain();
-  // main_ori_pub_.publish(main_ori_front);
-
-  // // compute and publish the mean orientation regarding the front wall
-
-  // std_msgs::Float32Ptr mean_ori_front(new std_msgs::Float32);
-  // mean_ori_front->data = getOrientationFrontMean();
-  // mean_ori_pub_.publish(mean_ori_front);
 
 }
 
@@ -627,7 +614,7 @@ void SafetyManager::computeXYZRepulsion(double & vx_rep, double & vy_rep, double
 
   }
 
-  ROS_INFO("vel: %f, %f, %f", vx_rep, vy_rep, vz_rep);
+  // ROS_INFO("vel: %f, %f, %f", vx_rep, vy_rep, vz_rep);
 
 }
 
@@ -700,37 +687,6 @@ void SafetyManager::computeZAttraction(double & vz_att){
   vz_att = -std::min(max_speed, K_max_height_attraction * std::max(0.0, height-max_height));
 
 }
-
-// float SafetyManager::getMeanDistanceFront(){
-
-//   int central_range = laser_num_ranges / 2;
-
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
-
-//   float mean_range = 0.0;
-//   int num_elem = 0;
-
-//   for (int i = initial_range; i <= final_range; i++){
-
-//     float range = laser_scan.ranges[i];
-
-//     if (std::isfinite(range)){
-
-//       mean_range += range;
-//       num_elem ++;
-
-//     }
-
-//   }
-
-//   if(num_elem <= 0) return INFINITY; // unable to compute the distance
-
-//   mean_range = mean_range / num_elem;
-
-//   return mean_range;
-
-// }
 
 float SafetyManager::getMinDistance(int direction){
 
@@ -829,371 +785,121 @@ float SafetyManager::getMinDistance(int direction){
 
 }
 
-// double SafetyManager::getOrientationFrontMean(){
+void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distance){
 
-//   int central_range = laser_num_ranges / 2;
+  PointCloud::Ptr point_cloud_ptr = point_cloud.makeShared();
 
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
+  tilt = skew = 0.0;
+  distance = 100.0;
 
-//   int iter = 0;
-//   double sum_X = 0.0;
-//   double sum_Y = 0.0;
-//   double sum_XX = 0.0;
-//   double sum_YY = 0.0;
-//   double sum_XY = 0.0;
-//   int num_elem = 0;
+  float x_comp, y_comp, z_comp;
 
-//   for (int i = initial_range; i <= final_range; i++){
+  x_comp = 1.0;
+  y_comp = 0.0;
+  z_comp = 0.0;
 
-//     double range = laser_scan.ranges[i];
+  pcl::FrustumCulling<Point> fc;
+  fc.setInputCloud (point_cloud_ptr);
+  fc.setVerticalFOV (degrees_for_attenuation);
+  fc.setHorizontalFOV (degrees_for_attenuation);
+  fc.setNearPlaneDistance (robot_radius);
+  fc.setFarPlaneDistance (100.0);
 
-//     if (std::isfinite(range)){
+  Eigen::Quaternionf rot;
+  rot.setFromTwoVectors(Eigen::Vector3f(1.0,0.0,0.0), Eigen::Vector3f(x_comp, y_comp, z_comp));
 
-//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-//       double x = range*cos(alpha);float SafetyManager::getMeanDistanceFront(){
+  Eigen::Matrix3f mat3 = rot.toRotationMatrix();
+  Eigen::Matrix4f pose_orig = Eigen::Matrix4f::Identity();
+  pose_orig.block(0,0,3,3) = mat3;
 
-//   int central_range = laser_num_ranges / 2;
+  Eigen::Matrix4f cam2robot;
+  cam2robot << 1, 0, 0, 0,
+               0, 0, 1, 0,
+               0,-1, 0, 0,
+               0, 0, 0, 1;
 
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
+  Eigen::Matrix4f camera_pose = pose_orig * cam2robot; // rotate 90 degrees around the robot x axis
 
-//   float mean_range = 0.0;
-//   int num_elem = 0;
-
-//   for (int i = initial_range; i <= final_range; i++){
-
-//     float range = laser_scan.ranges[i];
-
-//     if (std::isfinite(range)){
-
-//       mean_range += range;
-//       num_elem ++;
-
-//     }
-
-//   }
-
-//   if(num_elem <= 0) return INFINITY; // unable to compute the distance
-
-//   mean_range = mean_range / num_elem;
-
-//   return mean_range;
-
-// }
-
-// float SafetyManager::getMinDistance(int direction){
-
-//   /*direction:
-//       0--> back_right
-//       1--> right
-//       2--> front_right
-//       3--> front
-//       4--> front_left
-//       5--> left
-//       6--> back_left
-//   */
-
-//   int central_range = laser_num_ranges / 2;
-
-//   if (direction == 0){
-//     central_range = central_range - (int)(3*M_PI_4/laser_angle_incr);
-//   }else if (direction == 1){
-//     central_range = central_range - (int)(M_PI_2/laser_angle_incr);
-//   }else if (direction == 2){
-//     central_range = central_range - (int)(M_PI_4/laser_angle_incr);
-//   }else if (direction == 4){
-//     central_range = central_range + (int)(M_PI_4/laser_angle_incr);
-//   }else if (direction == 5){
-//     central_range = central_range + (int)(M_PI_2/laser_angle_incr);
-//   }else if (direction == 6){
-//     central_range = central_range + (int)(3*M_PI_4/laser_angle_incr);
-//   }
-
-//   int initial_range = std::max(central_range - half_scans_attenuation,0);
-//   int final_range = std::min(central_range + half_scans_attenuation, laser_num_ranges-1);
-
-//   float min_range = INFINITY; // unknown distance
-
-//   for (int i = initial_range; i <= final_range; i++){
-
-//     float range = laser_scan.ranges[i];
-
-//     if (std::isfinite(range)){
-
-//       min_range = std::min(range, min_range);
-
-//     }
-
-//   }
-
-//   return min_range;
-
-// }
-
-// double SafetyManager::getOrientationFrontMean(){
-
-//   int central_range = laser_num_ranges / 2;
-
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges-1, central_range + half_scans_attenuation);
-
-//   int iter = 0;
-//   double sum_X = 0.0;
-//   double sum_Y = 0.0;
-//   double sum_XX = 0.0;
-//   double sum_YY = 0.0;
-//   double sum_XY = 0.0;
-//   int num_elem = 0;
-
-//   for (int i = initial_range; i <= final_range; i++){
-
-//     double range = laser_scan.ranges[i];
-
-//     if (std::isfinite(range)){
-
-//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-//       double x = range*cos(alpha);
-//       double y = range*sin(alpha);
-
-//       sum_X += x;
-//       sum_Y += y;
-//       sum_XX += x*x;
-//       sum_YY += y*y;
-//       sum_XY += x*y;
-
-//       num_elem ++;
-
-//     }
-
-//     iter ++;
-
-//   }
-
-//   if(num_elem <= 0) return 0.0; // unable to compute the orientation
-
-//   double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
-//   double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
-//   double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
-
-//   bool isHorizontal = sXY == 0 && sXX < sYY;
-//   bool isVertical = sXY == 0 && sXX > sYY;
-//   bool isIndeterminate = sXY == 0 && sXX == sYY;
-//   double mav_ori;
-
-//   if (isHorizontal){
-
-//     mav_ori = 0.0;
-//     ROS_INFO("wall horizontal");
-
-//   }else if (isVertical){
-
-//     ROS_INFO("wall vertical");
-//     mav_ori = M_PI_2;
-
-//   }else if (isIndeterminate){
-
-//     ROS_INFO("wall indeterminate");
-//     mav_ori = M_PI_2; // not real
-
-//   }else{
-
-//     double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
-//     double slope = -sXY/(sXX-lambda);
-//     mav_ori = -atan2(1.0, slope);
-//     if (mav_ori < -M_PI_2) mav_ori += M_PI;
-
-//   }
-
-//   return mav_ori * 180.0 / M_PI;
-
-// }
-
-// double SafetyManager::getOrientationFrontMain(){
-
-//   int offset_range = 10;
-//   int range_incr = 1;
-
-//   int central_range = laser_num_ranges / 2;
-
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
-
-//   int iter = 0;
-//   int votes = 0;
-//   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
-
-//   for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
-
-//     double range1 = laser_scan.ranges[i];
-//     double range2 = laser_scan.ranges[i+offset_range];
-
-//     if (std::isfinite(range1) && (std::isfinite(range2))){
-
-//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-//       double x1 = range1*cos(alpha);
-//       double y1 = range1*sin(alpha);
-
-//       alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
-//       double x2 = range2*cos(alpha);
-//       double y2 = range2*sin(alpha);
-
-//       double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
-
-//       angles_v[90+int(round(beta))]++;
-//       votes ++;
-
-//     }
-
-//     iter+=range_incr;
-
-//   }
-
-//   if(votes == 0){
-//     //ROS_DEBUG("No valid ranges");
-//     return 0.0;
-//   }
+  fc.setCameraPose(camera_pose);
   
-//   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
-//   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
+  PointCloud target;
+  fc.filter (target);
 
-//   // filter the output considering the neighboring bins
-//   int total_samples = 0;
-//   int accumulated = 0;
-//   int filter_half_size = 3;
-//   for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
-//       if ((i >=0) && (i <=180)){
-//           total_samples += angles_v[i];
-//           accumulated += i*angles_v[i];
-//       }
-//   }
+  if(target.width > 0){
 
-//   double main_angle = 0.0;
+    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+    // Create the segmentation object
+    pcl::SACSegmentation<Point> seg;
+    // Optional
+    seg.setOptimizeCoefficients (true);
+    // Mandatory
+    seg.setModelType (pcl::SACMODEL_PLANE);
+    seg.setMethodType (pcl::SAC_RANSAC);
+    seg.setDistanceThreshold (0.01);
 
-//   if(total_samples > 0){
-//     main_angle = -90.0 + double(accumulated) / total_samples;
-//   }// else the angle cannot be computed. Return 0 deg.
+    seg.setInputCloud (target.makeShared());
 
-//   return main_angle;
+    try
+    {
+      seg.segment (*inliers, *coefficients);
+    }
+    catch(const std::exception& e)
+    {
+      // std::cerr << e.what() << '\n';
+    }
 
-// }
-//       sum_YY += y*y;
-//       sum_XY += x*y;
+    if (inliers->indices.size () == 0)
+    {
+      PCL_ERROR ("Could not estimate a planar model for the given dataset.\n");
+      return;
+    }
 
-//       num_elem ++;
+    double A = coefficients->values[0];
+    double B = coefficients->values[1];
+    double C = coefficients->values[2];
+    double D = coefficients->values[3];
 
-//     }
+    if(D > 0.0){
+      A*=-1;
+      B*=-1;
+      C*=-1;
+      D*=-1;
+    }
 
-//     iter ++;
+    // std::cerr << "Model coefficients: " << A << " " 
+    //                                     << B << " "
+    //                                     << C << " " 
+    //                                     << D << std::endl;
 
-//   }
+    // distance =  -D/A;
+    distance = -D / (A*x_comp + B*y_comp + C*z_comp); //<-- general case
 
-//   if(num_elem <= 0) return 0.0; // unable to compute the orientation
+    //compute plane orientation (tilt and skew)
+    Eigen::Quaternionf orien;
+    orien.setFromTwoVectors(Eigen::Vector3f(x_comp,y_comp,z_comp), Eigen::Vector3f(A, B, C));
 
-//   double sXX = num_elem * (sum_XX/num_elem - (sum_X/num_elem)*(sum_X/num_elem));
-//   double sYY = num_elem * (sum_YY/num_elem - (sum_Y/num_elem)*(sum_Y/num_elem));
-//   double sXY = num_elem * (sum_XY/num_elem - (sum_X/num_elem)*(sum_Y/num_elem));
+    tf::Quaternion quat(orien.x(), orien.y(), orien.z(), orien.w());
+    tf::Matrix3x3 m(quat);
+    double plane_roll, plane_pitch, plane_yaw;
+    m.getRPY(plane_roll, plane_pitch, plane_yaw);
+    plane_roll *= 180.0/M_PI;
+    plane_pitch *= 180.0/M_PI;
+    plane_yaw *= 180.0/M_PI;
 
-//   bool isHorizontal = sXY == 0 && sXX < sYY;
-//   bool isVertical = sXY == 0 && sXX > sYY;
-//   bool isIndeterminate = sXY == 0 && sXX == sYY;
-//   double mav_ori;
+    tilt = plane_pitch;
+    skew = plane_yaw;
 
-//   if (isHorizontal){
+    // ROS_INFO("Distance to plane: %2.2f", distance);
+    // ROS_INFO("Plane roll, pitch, yaw: %2.2f, %2.2f, %2.2f", plane_roll, plane_pitch, plane_yaw);
+  }
 
-//     mav_ori = 0.0;
-//     ROS_INFO("wall horizontal");
+  // std::cerr << "Model inliers: " << inliers->indices.size () << std::endl;
+  // for (const auto& idx: inliers->indices)
+  //   std::cerr << idx << "    " << target.points[idx].x << " "
+  //                              << target.points[idx].y << " "
+  //                              << target.points[idx].z << std::endl;
 
-//   }else if (isVertical){
-
-//     ROS_INFO("wall vertical");
-//     mav_ori = M_PI_2;
-
-//   }else if (isIndeterminate){
-
-//     ROS_INFO("wall indeterminate");
-//     mav_ori = M_PI_2; // not real
-
-//   }else{
-
-//     double lambda = ((sXX+sYY)-sqrt((sXX+sYY)*(sXX+sYY)-4*(sXX*sYY-sXY*sXY))) / 2.0;
-//     double slope = -sXY/(sXX-lambda);
-//     mav_ori = -atan2(1.0, slope);
-//     if (mav_ori < -M_PI_2) mav_ori += M_PI;
-
-//   }
-
-//   return mav_ori * 180.0 / M_PI;
-
-// }
-
-// double SafetyManager::getOrientationFrontMain(){
-
-//   int offset_range = 10;
-//   int range_incr = 1;
-
-//   int central_range = laser_num_ranges / 2;
-
-//   int initial_range = std::max(0, central_range - half_scans_attenuation);
-//   int final_range = std::min(laser_num_ranges, central_range + half_scans_attenuation);
-
-//   int iter = 0;
-//   int votes = 0;
-//   std::vector<int> angles_v (181,0);// from -90 to 90 degrees including 0
-
-//   for (int i = initial_range; i < final_range - offset_range; i+=range_incr){
-
-//     double range1 = laser_scan.ranges[i];
-//     double range2 = laser_scan.ranges[i+offset_range];
-
-//     if (std::isfinite(range1) && (std::isfinite(range2))){
-
-//       double alpha = -(half_scans_attenuation-iter) * laser_angle_incr;
-//       double x1 = range1*cos(alpha);
-//       double y1 = range1*sin(alpha);
-
-//       alpha = -(half_scans_attenuation-(iter+offset_range)) * laser_angle_incr;
-//       double x2 = range2*cos(alpha);
-//       double y2 = range2*sin(alpha);
-
-//       double beta = atan2((x2-x1),(y2-y1)) * 180.0 / M_PI;
-
-//       angles_v[90+int(round(beta))]++;
-//       votes ++;
-
-//     }
-
-//     iter+=range_incr;
-
-//   }
-
-//   if(votes == 0){
-//     //ROS_DEBUG("No valid ranges");
-//     return 0.0;
-//   }
-  
-//   std::vector<int>::iterator main_angle_votes = max_element(angles_v.begin(),angles_v.end());
-//   int main_angle_pose = distance(angles_v.begin(), main_angle_votes);
-
-//   // filter the output considering the neighboring bins
-//   int total_samples = 0;
-//   int accumulated = 0;
-//   int filter_half_size = 3;
-//   for(int i = main_angle_pose-filter_half_size; i<= main_angle_pose+filter_half_size; i++){
-//       if ((i >=0) && (i <=180)){
-//           total_samples += angles_v[i];
-//           accumulated += i*angles_v[i];
-//       }
-//   }
-
-//   double main_angle = 0.0;
-
-//   if(total_samples > 0){
-//     main_angle = -90.0 + double(accumulated) / total_samples;
-//   }// else the angle cannot be computed. Return 0 deg.
-
-//   return main_angle;
-
-// }
+}
 
 }  // namespace srv_mav_behaviours
