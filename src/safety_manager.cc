@@ -105,6 +105,7 @@ void SafetyManager::configure(){
   height_received = false;
   distance_ceiling_received = false;
   distance_ground_received = false;
+  imu_received = false;
 
   position_control_granted = false;
   //prevent all the autonomous behaviours
@@ -129,7 +130,7 @@ void SafetyManager::configure(){
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
   point_cloud_subs_ = nh_.subscribe<PointCloud>("point_cloud", 1, &SafetyManager::pointCloudClb, this);
-
+  imu_subs_ = nh_.subscribe("imu", 1, &SafetyManager::imuClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
   ceiling_distance_subs_ = nh_.subscribe("ceiling_distance", 1, &SafetyManager::ceilingDistanceClb, this);
   ground_distance_subs_ = nh_.subscribe("ground_distance", 1, &SafetyManager::groundDistanceClb, this);
@@ -262,8 +263,6 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
 
-  // point_cloud = PointCloud(*point_cloud_msg);
-
   //remove the robot parts from the point cloud
   pcl::ConditionOr<Point>::Ptr range_cond(new pcl::ConditionOr<Point>);//Instantiate condition pointer
   range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::GT, robot_radius)));
@@ -277,6 +276,66 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   condrem.setKeepOrganized(false);//Preserving the original point cloud structure means that the number of points is not reduced, and nan is used instead
   //apply filter
   condrem.filter(point_cloud);
+
+  //listen for OS1_sensor to base_link transform and transform the point_cloud
+  tf::StampedTransform bslk2OS1;
+  try{
+    tf_lis_.lookupTransform("/base_link", point_cloud_msg->header.frame_id, ros::Time(0), bslk2OS1);
+  }catch (tf::TransformException &ex) {
+    ROS_WARN("Could NOT get TF between baselink and %s: %s", point_cloud_msg->header.frame_id.c_str(), ex.what());
+    return;
+  }
+
+  // tf::Matrix3x3 m_os1;
+  // m_os1 = bslk2OS1.getBasis();
+  // tf::Vector3 v_os1;
+  // v_os1 = bslk2OS1.getOrigin();
+
+  // Eigen::Matrix3d m_os1_eig;
+  // tf::matrixTFToEigen(m_os1, m_os1_eig);
+  // Eigen::Vector3d v_os1_eig;
+  // tf::vectorTFToEigen(v_os1,v_os1_eig);
+
+  // Eigen::Matrix4d m_os1_eig4 = Eigen::Matrix4d::Identity();
+  // m_os1_eig4.block(0,0,3,3) = m_os1_eig;
+  // m_os1_eig4.block(0,4,1,1) = v_os1_eig;
+
+  // pcl::transformPointCloud (point_cloud, point_cloud, m_os1_eig4);
+
+  tf::Transform tf_aux (bslk2OS1);
+  Eigen::Isometry3d iso_eig;
+  tf::transformTFToEigen(tf_aux, iso_eig);
+  pcl::transformPointCloud (point_cloud, point_cloud,iso_eig.matrix());
+
+  point_cloud.header.frame_id = "base_link";
+
+  if(imu_received){ //compensate robot roll and pitch
+    
+    tf::Quaternion quat;
+    tf::quaternionMsgToTF(imu.orientation, quat);
+    tf::Matrix3x3 m(quat);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
+
+    tf::Matrix3x3 m_hori;
+    m_hori.setRPY(-roll, -pitch, 0.0);
+
+    Eigen::Matrix3d m_eig;
+    tf::matrixTFToEigen(m_hori, m_eig);
+
+    Eigen::Matrix4d m_eig4 = Eigen::Matrix4d::Identity();
+    m_eig4.block(0,0,3,3) = m_eig;
+    pcl::transformPointCloud (point_cloud, point_cloud, m_eig4);
+
+    point_cloud.header.frame_id = "base_link_hori";
+
+    //publish TF from base_link to base_link_hori
+    tf::Transform bslk2bslk_hori;
+    tf::Quaternion q;
+    q.setRPY(-roll, -pitch, 0.0);
+    bslk2bslk_hori.setRotation(q);
+    tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
+  }
 
   if(distance_ground_received && (distance_ground < 2.0)){ //flying close to the ground
 
@@ -323,9 +382,16 @@ void SafetyManager::groundDistanceClb(const sensor_msgs::Range::ConstPtr& ground
   distance_ground_received = true;
 }
 
+void SafetyManager::imuClb(const sensor_msgs::Imu::ConstPtr& imu_msg){
+ 
+  imu = *imu_msg; 
+  imu_received = true;
+
+}
+
 void SafetyManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(desired_vel_received && point_cloud_received  && height_received && distance_ceiling_received && distance_ground_received)) return;
+  if(!(desired_vel_received && point_cloud_received  && imu_received && height_received && distance_ceiling_received && distance_ground_received)) return;
 
   // get the desired command
 

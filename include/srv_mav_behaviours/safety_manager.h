@@ -28,6 +28,7 @@
 #include <sensor_msgs/Range.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float32.h>
+#include <sensor_msgs/Imu.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
@@ -36,11 +37,15 @@
 #include <srv_mav_behaviours/GiveUpControl.h>
 
 #include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>
 
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/frustum_culling.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/common/transforms.h>
 
 typedef pcl::PointXYZRGBA      Point;
 typedef pcl::PointCloud<Point> PointCloud;
@@ -61,6 +66,7 @@ class SafetyManager {
   ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_;
   ros::Subscriber height_subs_, ceiling_distance_subs_, ground_distance_subs_;
   ros::Subscriber point_cloud_subs_;
+  ros::Subscriber imu_subs_;
   ros::Subscriber flight_status_subs_;
 
   ros::Publisher twist_pub_;
@@ -69,10 +75,12 @@ class SafetyManager {
   ros::Publisher wall_tilt_front_pub_;
   ros::Publisher min_dist_front_pub_, min_dist_left_pub_, min_dist_right_pub_, min_dist_back_pub_;
   ros::Publisher min_dist_front_left_pub_, min_dist_front_right_pub_, min_dist_back_left_pub_, min_dist_back_right_pub_;
-
   ros::Publisher point_cloud_pub_;
 
   ros::Timer timer_;
+
+  tf::TransformBroadcaster tf_br_;
+  tf::TransformListener tf_lis_;
 
   dynamic_reconfigure::Server<srv_mav_behaviours::safety_managerConfig> reconfigure_server_;
 
@@ -97,6 +105,8 @@ class SafetyManager {
   bool position_control_granted;
   PointCloud point_cloud;
   bool point_cloud_received;
+  sensor_msgs::Imu imu;
+  bool imu_received;
   // int laser_num_ranges;
   // float laser_angle_incr;
   // float laser_angle_min;
@@ -126,6 +136,7 @@ class SafetyManager {
   void heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg);
   void ceilingDistanceClb(const sensor_msgs::Range::ConstPtr& ceiling_distance_msg);
   void groundDistanceClb(const sensor_msgs::Range::ConstPtr& ground_distance_msg);
+  void imuClb(const sensor_msgs::Imu::ConstPtr& imu_msg);
   void timerClb(const ros::TimerEvent& event);
 
   // Other methods
