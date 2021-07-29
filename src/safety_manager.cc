@@ -334,6 +334,7 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
     tf::Quaternion q;
     q.setRPY(-roll, -pitch, 0.0);
     bslk2bslk_hori.setRotation(q);
+    bslk2bslk_hori.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
     tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
   }
 
