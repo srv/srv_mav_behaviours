@@ -263,6 +263,8 @@ void SafetyManager::userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg
 
 void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
 
+  if(!(imu_received && distance_ground_received)) return;
+
   //remove the robot parts from the point cloud
   pcl::ConditionOr<Point>::Ptr range_cond(new pcl::ConditionOr<Point>);//Instantiate condition pointer
   range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::GT, robot_radius)));
@@ -309,41 +311,41 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
 
   point_cloud.header.frame_id = "base_link";
 
-  if(imu_received){ //compensate robot roll and pitch
+  //compensate robot roll and pitch
     
-    tf::Quaternion quat;
-    tf::quaternionMsgToTF(imu.orientation, quat);
-    tf::Matrix3x3 m(quat);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
+  tf::Quaternion quat;
+  tf::quaternionMsgToTF(imu.orientation, quat);
+  tf::Matrix3x3 m(quat);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
 
-    tf::Matrix3x3 m_hori;
-    m_hori.setRPY(-roll, -pitch, 0.0);
+  tf::Matrix3x3 m_hori;
+  m_hori.setRPY(roll, pitch, 0.0);
 
-    Eigen::Matrix3d m_eig;
-    tf::matrixTFToEigen(m_hori, m_eig);
+  Eigen::Matrix3d m_eig;
+  tf::matrixTFToEigen(m_hori, m_eig);
 
-    Eigen::Matrix4d m_eig4 = Eigen::Matrix4d::Identity();
-    m_eig4.block(0,0,3,3) = m_eig;
-    pcl::transformPointCloud (point_cloud, point_cloud, m_eig4);
+  Eigen::Matrix4d m_eig4 = Eigen::Matrix4d::Identity();
+  m_eig4.block(0,0,3,3) = m_eig;
+  pcl::transformPointCloud (point_cloud, point_cloud, m_eig4);
 
-    point_cloud.header.frame_id = "base_link_hori";
+  point_cloud.header.frame_id = "base_link_hori";
 
-    //publish TF from base_link to base_link_hori
-    tf::Transform bslk2bslk_hori;
-    tf::Quaternion q;
-    q.setRPY(-roll, -pitch, 0.0);
-    bslk2bslk_hori.setRotation(q);
-    bslk2bslk_hori.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-    tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
-  }
+  //publish TF from base_link to base_link_hori
+  tf::Transform bslk2bslk_hori;
+  tf::Quaternion q;
+  q.setRPY(-roll, -pitch, 0.0);
+  bslk2bslk_hori.setRotation(q);
+  bslk2bslk_hori.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
+ 
 
-  if(distance_ground_received && (distance_ground < 2.0)){ //flying close to the ground
+  if(distance_ground < 2.0){ //flying close to the ground
 
     //eliminate all the ground points from the input pointcloud
     pcl::PassThrough<Point> pass;
     pass.setFilterFieldName("z");
-    pass.setFilterLimits(-0.2, attenuation_distance_wall);
+    pass.setFilterLimits(0.0, attenuation_distance_wall);
     pass.setInputCloud(point_cloud.makeShared());
     pass.filter(point_cloud);
   }
