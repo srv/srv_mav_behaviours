@@ -784,6 +784,10 @@ float SafetyManager::getMinDistance(int direction){
     x_comp = 1.0;
     y_comp = -1.0;
     z_comp = 0.0;
+  }else if (direction == 3){
+    x_comp = 1.0;
+    y_comp = 0.0;
+    z_comp = 0.0;
   }else if (direction == 4){
     x_comp = 1.0;
     y_comp = 1.0;
@@ -869,8 +873,10 @@ void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distan
 
   pcl::FrustumCulling<Point> fc;
   fc.setInputCloud (point_cloud_ptr);
-  fc.setVerticalFOV (degrees_for_attenuation);
-  fc.setHorizontalFOV (degrees_for_attenuation);
+  //fc.setVerticalFOV (degrees_for_attenuation);
+  //fc.setHorizontalFOV (degrees_for_attenuation);
+  fc.setVerticalFOV (60);
+  fc.setHorizontalFOV (60);
   fc.setNearPlaneDistance (robot_radius);
   fc.setFarPlaneDistance (100.0);
 
@@ -894,7 +900,7 @@ void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distan
   PointCloud target;
   fc.filter (target);
 
-  if(target.width > 0){
+  if(target.width > 5){
 
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
@@ -913,17 +919,18 @@ void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distan
     {
       seg.segment (*inliers, *coefficients);
     }
-    catch(const std::exception& e)
+    
+    catch (std::exception& e)
     {
-      // std::cerr << e.what() << '\n';
+      ROS_WARN("RANSAC error: %s", e.what());
     }
-
-    ROS_INFO("RANSAC inliers: %d/%d possible", (int)(inliers->indices.size()), target.width);  
-
-    if (inliers->indices.size() == 0){
-      ROS_WARN ("Could not estimate a planar model for the given dataset.\n");
+   
+    if (inliers->indices.size() < 5){
+      //ROS_WARN ("Could not estimate a good planar model for the given dataset.\n");
       return;
     }
+
+    ROS_INFO("RANSAC inliers: %d/%d possible", (int)(inliers->indices.size()), target.width); 
 
     double A = coefficients->values[0];
     double B = coefficients->values[1];
