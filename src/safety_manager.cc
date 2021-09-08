@@ -925,7 +925,8 @@ void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distan
       ROS_WARN("RANSAC error: %s", e.what());
     }
    
-    if (inliers->indices.size() < 5){
+    // if we have just a few inliers and these are not almost all the possible cadidates
+    if ((inliers->indices.size() < 10) && (inliers->indices.size() < (target.width * 0.8))){
       //ROS_WARN ("Could not estimate a good planar model for the given dataset.\n");
       return;
     }
