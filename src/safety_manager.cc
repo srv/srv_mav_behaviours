@@ -931,7 +931,7 @@ void SafetyManager::getPlaneParams(double & tilt, double & skew, double & distan
       return;
     }
 
-    ROS_INFO("RANSAC inliers: %d/%d possible", (int)(inliers->indices.size()), target.width); 
+    // ROS_INFO("RANSAC inliers: %d/%d possible", (int)(inliers->indices.size()), target.width); 
 
     double A = coefficients->values[0];
     double B = coefficients->values[1];
