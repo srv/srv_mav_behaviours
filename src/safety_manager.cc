@@ -340,15 +340,16 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
  
 
+  
+  pcl::PassThrough<Point> pass;
+  pass.setFilterFieldName("z");
   if(distance_ground < 2.0){ //flying close to the ground
-
-    //eliminate all the ground points from the input pointcloud
-    pcl::PassThrough<Point> pass;
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(0.0, attenuation_distance_wall);
-    pass.setInputCloud(point_cloud.makeShared());
-    pass.filter(point_cloud);
+    pass.setFilterLimits(0.0, attenuation_distance_wall); //eliminate all the ground points from the input pointcloud
+  }else{
+    pass.setFilterLimits(-attenuation_distance_wall, attenuation_distance_wall); //consider only obstacles close to the XY plane of the robot
   }
+  pass.setInputCloud(point_cloud.makeShared());
+  pass.filter(point_cloud);
 
   point_cloud_received = true;
 
