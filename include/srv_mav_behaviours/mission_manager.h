@@ -24,6 +24,7 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <sensor_msgs/Range.h>
+#include <nav_msgs/Path.h>
 #include <tf/tf.h>
 
 #include <dynamic_reconfigure/server.h>
@@ -52,6 +53,7 @@ class MissionManager {
   ros::NodeHandle nh_;
 
   ros::Publisher pose_pub_;
+  ros::Publisher mission_path_pub_;
   ros::Subscriber pose_subs_;
   ros::Subscriber min_distance_left_subs_, min_distance_right_subs_, min_distance_up_subs_, min_distance_down_subs_;
 
@@ -97,6 +99,9 @@ class MissionManager {
   int vinspection_state;
   int vinspection_status;
   bool vinspection_reaching_end;
+
+  bool publish_mission_path;
+  nav_msgs::PathPtr mission_path;
 
   double home_x, home_y, home_z;
 
@@ -146,6 +151,10 @@ class MissionManager {
   void performHovering();
   void performGoHome();
   void performGoToPoint(double point_x, double point_y, double point_z);
+
+  void publishMissionPath();
+  void clearMissionPath();
+  void createSweepingPath();
 
 };
 

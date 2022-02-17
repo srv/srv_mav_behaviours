@@ -84,6 +84,9 @@ void MissionManager::configure(){
 
   WP_x = WP_y = WP_z = 0.0;
 
+  publish_mission_path = false;
+  mission_path = nav_msgs::PathPtr(new nav_msgs::Path);
+
   // --------------parameters for WP-based sweeping-----------------
 
   performing_sweep = false;
@@ -131,6 +134,7 @@ void MissionManager::configure(){
 
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
+  mission_path_pub_ = nh_.advertise<nav_msgs::Path>("mission_path", 1);
 
   // Subscribers
   pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
@@ -329,6 +333,11 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
+
+    if(!sweep_wall_to_wall){
+      createSweepingPath();
+      publish_mission_path = true;
+    }
   }
 
   return true;
@@ -970,6 +979,16 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   }
 
+  if(publish_mission_path){
+    if (sweep_status > 0){//sweeping in progress or paused
+      publishMissionPath();
+    }else{
+      clearMissionPath();
+      publishMissionPath(); // publish one last time an empty path
+      publish_mission_path = false;
+    }
+  }
+
 }
 
 void MissionManager::performSweep(){
@@ -1242,6 +1261,79 @@ void MissionManager::performVerticalInspection(){
 
   }
 
+}
+
+void MissionManager::publishMissionPath(){
+
+  mission_path_pub_.publish(mission_path);
+
+}
+
+void MissionManager::clearMissionPath(){
+
+  mission_path = nav_msgs::PathPtr(new nav_msgs::Path);
+
+}
+
+void MissionManager::createSweepingPath(){
+
+  clearMissionPath();
+
+  geometry_msgs::PoseStamped point1;
+  geometry_msgs::PoseStamped point2;
+
+  //add current position as initial point1
+  point1.pose.position.x = current_x;
+  point1.pose.position.y = current_y;
+  point1.pose.position.z = current_z;
+  mission_path->poses.push_back(point1);
+
+  tf::Vector3 robot_incr(0.0, sweep_y_size, 0.0);
+  tf::Matrix3x3 m_rot;
+  m_rot.setRPY(0, 0, initial_yaw_sweep);
+  tf::Vector3 world_incr = m_rot * robot_incr;
+  double other_x = current_x + world_incr.getX();
+  double other_y = current_y + world_incr.getY();
+
+  double last_z = current_z;
+  double next_z;
+  double final_z = current_z - sweep_z_size;
+  bool right = true;
+
+  while(true){
+    
+    if(right){
+
+      point1.pose.position.x = other_x;
+      point1.pose.position.y = other_y;
+
+    }else{ // go back to the left
+
+      point1.pose.position.x = current_x;
+      point1.pose.position.y = current_y;
+
+    }
+
+    point1.pose.position.z = last_z;
+    right = !right;
+
+    mission_path->poses.push_back(point1);
+
+    next_z = last_z - sweep_z_increment; 
+
+    if(next_z < final_z) break; // beyond sweeping vertical limit 
+    else if(next_z < min_height) break; // too close to the ground
+    else{
+
+      point2.pose.position.x = point1.pose.position.x;
+      point2.pose.position.y = point1.pose.position.y;
+      point2.pose.position.z = next_z;
+      last_z = next_z;
+
+      mission_path->poses.push_back(point2);
+
+    }
+  }
 }
 
 }  // namespace srv_mav_behaviours
