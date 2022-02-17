@@ -1300,7 +1300,7 @@ void MissionManager::createSweepingPath(){
   point1.pose.position.z = current_z;
   mission_path->poses.push_back(point1);
 
-  tf::Vector3 robot_incr(0.0, sweep_y_size, 0.0);
+  tf::Vector3 robot_incr(0.0, -sweep_y_size, 0.0);
   tf::Matrix3x3 m_rot;
   m_rot.setRPY(0, 0, initial_yaw_sweep);
   tf::Vector3 world_incr = m_rot * robot_incr;
