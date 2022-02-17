@@ -863,6 +863,8 @@ void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::Con
   current_y = pose_msg->pose.pose.position.y;
   current_z = pose_msg->pose.pose.position.z;
 
+  world_frame = pose_msg->header.frame_id;
+
   tf::Quaternion q;
   tf::quaternionMsgToTF(pose_msg->pose.pose.orientation, q);
   tf::Matrix3x3 m(q);
@@ -1279,8 +1281,16 @@ void MissionManager::createSweepingPath(){
 
   clearMissionPath();
 
+  mission_path->header.frame_id = world_frame;
+  mission_path->header.stamp = ros::Time::now();
+
   geometry_msgs::PoseStamped point1;
   geometry_msgs::PoseStamped point2;
+
+  point1.header.frame_id = world_frame;
+  point2.header.frame_id = world_frame;
+  point1.header.stamp = mission_path->header.stamp;
+  point2.header.stamp = mission_path->header.stamp;
 
   //add current position as initial point1
   point1.pose.position.x = current_x;

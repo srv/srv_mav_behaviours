@@ -68,6 +68,7 @@ class MissionManager {
   double vinspection_min_ceiling_dist;
 
   // Global variables
+  std::string world_frame;
   double current_x, current_y, current_z, current_yaw;
 
   bool pose_received;
