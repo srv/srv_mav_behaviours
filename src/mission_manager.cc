@@ -1291,6 +1291,8 @@ void MissionManager::createSweepingPath(){
   point2.header.frame_id = world_frame;
   point1.header.stamp = mission_path->header.stamp;
   point2.header.stamp = mission_path->header.stamp;
+  point1.pose.orientation.w = 1.0;
+  point2.pose.orientation.w = 1.0;
 
   //add current position as initial point1
   point1.pose.position.x = current_x;
