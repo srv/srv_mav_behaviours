@@ -985,8 +985,6 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     if (sweep_status > 0){//sweeping in progress or paused
       publishMissionPath();
     }else{
-      clearMissionPath();
-      publishMissionPath(); // publish one last time an empty path
       publish_mission_path = false;
     }
   }
