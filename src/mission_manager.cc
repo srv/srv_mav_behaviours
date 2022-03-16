@@ -473,7 +473,9 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       vinspection_status = 0;
       nh_.setParam("vinspection_status", vinspection_status);
 
-      //recomputeSweepingPath();
+      if(!sweep_wall_to_wall){
+        recomputeSweepingPath();
+      }
 
     }
 
@@ -1397,33 +1399,36 @@ void MissionManager::createSweepingPath(){
   }
 }
 
-/*void MissionManager::recomputeSweepingPath(){
+void MissionManager::recomputeSweepingPath(){
 
-  // convert the path into a PC
-
-  //translate the PC to make the last UAS pose (before pause) be at (0,0,0)
-
-  //unrotate the PC given the old sweeping_initial_yaw 
-
-  //translate the PC -X to make all the points be at YZ plane (to correct offset of last point before pause)
-
-  //rotate the path to the new sweeping_initial_yaw
-
-  //translate the path to the current UAS pose (do not modify Zs!!)
+  double first_x = mission_path->poses.at(0).pose.position.x;
+  double first_y = mission_path->poses.at(0).pose.position.y;
+  double first_z = mission_path->poses.at(0).pose.position.z;
+  tf::Vector3 first_point(first_x, first_y, first_z);
+  tf::Matrix3x3 mat;
+  mat.setRPY(0, 0, initial_yaw_sweep-pausedSW_yaw); //update in SW orientation
+  tf::Vector3 pausedSW_WP(pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z);
+  pausedSW_WP = pausedSW_WP - first_point;
+  tf::Vector3 pausedSW_WP_rot = mat * pausedSW_WP;
+  tf::Vector3 WP(WP_x, WP_y, WP_z);
+  tf::Vector3 offsetWPs = WP - first_point - pausedSW_WP_rot;
 
   int num_points = mission_path->poses.size();
-  tf::Vector3 point;
-  double old_x, old_y, old_z;
-
+  double point_x, point_y, point_z;
   for(int i = 0; i < num_points; i++){
-    old_x = mission_path->poses.at(i).pose.position.x;
-    old_y = mission_path->poses.at(i).pose.position.y;
-    old_z = mission_path->poses.at(i).pose.position.z;
-
-    point = point * 
+    point_x = mission_path->poses.at(i).pose.position.x;
+    point_y = mission_path->poses.at(i).pose.position.y;
+    point_z = mission_path->poses.at(i).pose.position.z;
+    tf::Vector3 point(point_x, point_y, point_z);
+    point = point - first_point;
+    point = mat * point;
+    point = point + offsetWPs;
+    mission_path->poses.at(i).pose.position.x = point.getX();
+    mission_path->poses.at(i).pose.position.y = point.getY();
+    mission_path->poses.at(i).pose.position.z = point.getZ();
   }
 
-}*/
+}
 
 void MissionManager::createVerticalInspectionPath(){
 
