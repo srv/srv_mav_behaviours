@@ -390,6 +390,11 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
     pausedSW_WP_y = WP_y;
     pausedSW_WP_z = WP_z;
 
+    pausedSW_last_x = current_x;
+    pausedSW_last_y = current_y;
+    pausedSW_last_z = current_z;
+    pausedSW_yaw = initial_yaw_sweep;
+
   }else{
 
     ROS_WARN("No sweeping in course");
@@ -418,9 +423,19 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
 
       if((sweep_state == 0) || (sweep_state == 2)){ // not going down
 
-        double remaining_x = WP_x - current_x;
-        double remaining_y = WP_y - current_y;
-        double sweep_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
+        // double remaining_x = WP_x - current_x;
+        // double remaining_y = WP_y - current_y;
+        // double sweep_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
+
+        //rotate the WP and the current location -initial_yaw_sweep degrees
+        //then the difference in Y axis is the sweep_y_remaining
+        tf::Vector3 WP_vector(WP_x, WP_y, WP_z);
+        tf::Vector3 current_vector(current_x, current_y, current_z);
+        tf::Matrix3x3 yaw_SW_mat;
+        yaw_SW_mat.setRPY(0, 0, -initial_yaw_sweep);
+        tf::Vector3 WP_vector_rot = yaw_SW_mat * WP_vector;
+        tf::Vector3 current_vector_rot = yaw_SW_mat * current_vector;
+        double sweep_y_remaining = abs(WP_vector_rot.getY() - current_vector_rot.getY());
         
         if(sweep_state == 0){ // go to right
 
@@ -457,6 +472,8 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       performing_vinspection = false;
       vinspection_status = 0;
       nh_.setParam("vinspection_status", vinspection_status);
+
+      //recomputeSweepingPath();
 
     }
 
@@ -550,6 +567,11 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     performing_sweep = false;
     sweep_status = 0;
     nh_.setParam("sweep_status", sweep_status);
+
+    if(!vinspection_to_ceiling){
+      createVerticalInspectionPath();
+      publish_mission_path = true;
+    }
   }
 
   return true;
@@ -602,6 +624,11 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
     pausedSW_WP_y = WP_y;
     pausedSW_WP_z = WP_z;
 
+    pausedSW_last_x = current_x;
+    pausedSW_last_y = current_y;
+    pausedSW_last_z = current_z;
+    pausedSW_yaw = initial_yaw_vinspection;
+
   }else{
 
     ROS_WARN("No vertical inspection in course");
@@ -636,14 +663,24 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
 
       }else{ // going to the right
 
-        // update the inital_yaw_vinspection for computing the next waypoint
-        initial_yaw_vinspection = current_yaw;
+        // double remaining_x = WP_x - current_x;
+        // double remaining_y = WP_y - current_y;
+        // double vinspection_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
 
-        double remaining_x = WP_x - current_x;
-        double remaining_y = WP_y - current_y;
-        double vinspection_y_remaining = sqrt(remaining_x*remaining_x + remaining_y*remaining_y);
-
+        //rotate the WP and the current location -initial_yaw_vinspection degrees
+        //then the difference in Y axis is the vinspection_y_remaining
+        tf::Vector3 WP_vector(WP_x, WP_y, WP_z);
+        tf::Vector3 current_vector(current_x, current_y, current_z);
+        tf::Matrix3x3 yaw_VI_mat;
+        yaw_VI_mat.setRPY(0, 0, -initial_yaw_vinspection);
+        tf::Vector3 WP_vector_rot = yaw_VI_mat * WP_vector;
+        tf::Vector3 current_vector_rot = yaw_VI_mat * current_vector;
+        double vinspection_y_remaining = abs(WP_vector_rot.getY() - current_vector_rot.getY());
+        
         tf::Vector3 robot_incr(0.0, -vinspection_y_remaining, 0.0); //move to the right
+
+      // update the inital_yaw_vinspection for computing the next waypoint
+        initial_yaw_vinspection = current_yaw;
 
         //rotate the increment to the world frame using the estimated yaw
         tf::Matrix3x3 m_rot;
@@ -715,6 +752,11 @@ void MissionManager::performHovering(){
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
 
+      pausedSW_last_x = current_x;
+      pausedSW_last_y = current_y;
+      pausedSW_last_z = current_z;
+      pausedSW_yaw = initial_yaw_sweep;
+
     }
 
     if(performing_vinspection){//pause the vertical inspection in course (if any)
@@ -728,6 +770,11 @@ void MissionManager::performHovering(){
       pausedSW_WP_x = WP_x;
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
+
+      pausedSW_last_x = current_x;
+      pausedSW_last_y = current_y;
+      pausedSW_last_z = current_z;
+      pausedSW_yaw = initial_yaw_vinspection;
 
     }
 
@@ -907,6 +954,11 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
 
+      pausedSW_last_x = current_x;
+      pausedSW_last_y = current_y;
+      pausedSW_last_z = current_z;
+      pausedSW_yaw = initial_yaw_sweep;
+
     }
 
     if(performing_vinspection){//pause the vertical inspection in course (if any)
@@ -920,6 +972,11 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       pausedSW_WP_x = WP_x;
       pausedSW_WP_y = WP_y;
       pausedSW_WP_z = WP_z;
+
+      pausedSW_last_x = current_x;
+      pausedSW_last_y = current_y;
+      pausedSW_last_z = current_z;
+      pausedSW_yaw = initial_yaw_vinspection;
 
     }
 
@@ -982,7 +1039,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   }
 
   if(publish_mission_path){
-    if (sweep_status > 0){//sweeping in progress or paused
+    if ((sweep_status > 0)||(vinspection_status > 0)){//sweeping or vinspection in progress or paused
       publishMissionPath();
     }else{
       publish_mission_path = false;
@@ -1282,21 +1339,17 @@ void MissionManager::createSweepingPath(){
   mission_path->header.frame_id = world_frame;
   mission_path->header.stamp = ros::Time::now();
 
-  geometry_msgs::PoseStamped point1;
-  geometry_msgs::PoseStamped point2;
+  geometry_msgs::PoseStamped point;
 
-  point1.header.frame_id = world_frame;
-  point2.header.frame_id = world_frame;
-  point1.header.stamp = mission_path->header.stamp;
-  point2.header.stamp = mission_path->header.stamp;
-  point1.pose.orientation.w = 1.0;
-  point2.pose.orientation.w = 1.0;
+  point.header.frame_id = world_frame;
+  point.header.stamp = mission_path->header.stamp;
+  point.pose.orientation.w = 1.0;
 
-  //add current position as initial point1
-  point1.pose.position.x = current_x;
-  point1.pose.position.y = current_y;
-  point1.pose.position.z = current_z;
-  mission_path->poses.push_back(point1);
+  //add current position as initial point
+  point.pose.position.x = current_x;
+  point.pose.position.y = current_y;
+  point.pose.position.z = current_z;
+  mission_path->poses.push_back(point);
 
   tf::Vector3 robot_incr(0.0, -sweep_y_size, 0.0);
   tf::Matrix3x3 m_rot;
@@ -1314,20 +1367,20 @@ void MissionManager::createSweepingPath(){
     
     if(right){
 
-      point1.pose.position.x = other_x;
-      point1.pose.position.y = other_y;
+      point.pose.position.x = other_x;
+      point.pose.position.y = other_y;
 
     }else{ // go back to the left
 
-      point1.pose.position.x = current_x;
-      point1.pose.position.y = current_y;
+      point.pose.position.x = current_x;
+      point.pose.position.y = current_y;
 
     }
 
-    point1.pose.position.z = last_z;
+    point.pose.position.z = last_z;
     right = !right;
 
-    mission_path->poses.push_back(point1);
+    mission_path->poses.push_back(point); // add next point to the right or left
 
     next_z = last_z - sweep_z_increment; 
 
@@ -1335,15 +1388,84 @@ void MissionManager::createSweepingPath(){
     else if(next_z < min_height) break; // too close to the ground
     else{
 
-      point2.pose.position.x = point1.pose.position.x;
-      point2.pose.position.y = point1.pose.position.y;
-      point2.pose.position.z = next_z;
+      point.pose.position.z = next_z;
       last_z = next_z;
 
-      mission_path->poses.push_back(point2);
+      mission_path->poses.push_back(point); // add next point going down
 
     }
   }
+}
+
+/*void MissionManager::recomputeSweepingPath(){
+
+  // convert the path into a PC
+
+  //translate the PC to make the last UAS pose (before pause) be at (0,0,0)
+
+  //unrotate the PC given the old sweeping_initial_yaw 
+
+  //translate the PC -X to make all the points be at YZ plane (to correct offset of last point before pause)
+
+  //rotate the path to the new sweeping_initial_yaw
+
+  //translate the path to the current UAS pose (do not modify Zs!!)
+
+  int num_points = mission_path->poses.size();
+  tf::Vector3 point;
+  double old_x, old_y, old_z;
+
+  for(int i = 0; i < num_points; i++){
+    old_x = mission_path->poses.at(i).pose.position.x;
+    old_y = mission_path->poses.at(i).pose.position.y;
+    old_z = mission_path->poses.at(i).pose.position.z;
+
+    point = point * 
+  }
+
+}*/
+
+void MissionManager::createVerticalInspectionPath(){
+
+  clearMissionPath();
+
+  mission_path->header.frame_id = world_frame;
+  mission_path->header.stamp = ros::Time::now();
+
+  geometry_msgs::PoseStamped point;
+
+  point.header.frame_id = world_frame;
+  point.header.stamp = mission_path->header.stamp;
+  point.pose.orientation.w = 1.0;
+
+  //the path comprises just four points
+
+  //add current position as initial point
+  point.pose.position.x = current_x;
+  point.pose.position.y = current_y;
+  point.pose.position.z = current_z;
+  mission_path->poses.push_back(point);
+
+  tf::Vector3 robot_incr(0.0, -vinspection_y_size, 0.0);
+  tf::Matrix3x3 m_rot;
+  m_rot.setRPY(0, 0, initial_yaw_vinspection);
+  tf::Vector3 world_incr = m_rot * robot_incr;
+  double other_x = current_x + world_incr.getX();
+  double other_y = current_y + world_incr.getY();
+
+  //add second point
+  point.pose.position.z = current_z + vinspection_z_size;
+  mission_path->poses.push_back(point);
+
+  //add third point
+  point.pose.position.x = other_x;
+  point.pose.position.y = other_y;
+  mission_path->poses.push_back(point);
+
+  //add last point
+  point.pose.position.z = current_z;
+  mission_path->poses.push_back(point);
+
 }
 
 }  // namespace srv_mav_behaviours
