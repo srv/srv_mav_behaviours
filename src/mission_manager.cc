@@ -386,14 +386,11 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
     give_up_control_client_.call(give_up_control);
 
     // save WP to allow resuming the sweeping
-    pausedSW_WP_x = WP_x;
-    pausedSW_WP_y = WP_y;
-    pausedSW_WP_z = WP_z;
+    pausedMission_WP_x = WP_x;
+    pausedMission_WP_y = WP_y;
+    pausedMission_WP_z = WP_z;
 
-    pausedSW_last_x = current_x;
-    pausedSW_last_y = current_y;
-    pausedSW_last_z = current_z;
-    pausedSW_yaw = initial_yaw_sweep;
+    pausedMission_yaw = initial_yaw_sweep;
 
   }else{
 
@@ -417,9 +414,9 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       //recompute the WP with the current orientation
 
       // restore saved WP
-      WP_x = pausedSW_WP_x;
-      WP_y = pausedSW_WP_y;
-      WP_z = pausedSW_WP_z;
+      WP_x = pausedMission_WP_x;
+      WP_y = pausedMission_WP_y;
+      WP_z = pausedMission_WP_z;
 
       if((sweep_state == 0) || (sweep_state == 2)){ // not going down
 
@@ -622,14 +619,11 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
     give_up_control_client_.call(give_up_control);
 
     // save WP to allow resuming the vertical inspection
-    pausedSW_WP_x = WP_x;
-    pausedSW_WP_y = WP_y;
-    pausedSW_WP_z = WP_z;
+    pausedMission_WP_x = WP_x;
+    pausedMission_WP_y = WP_y;
+    pausedMission_WP_z = WP_z;
 
-    pausedSW_last_x = current_x;
-    pausedSW_last_y = current_y;
-    pausedSW_last_z = current_z;
-    pausedSW_yaw = initial_yaw_vinspection;
+    pausedMission_yaw = initial_yaw_vinspection;
 
   }else{
 
@@ -653,9 +647,9 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       //recompute the WP with the current orientation
 
       // restore saved WP
-      WP_x = pausedSW_WP_x;
-      WP_y = pausedSW_WP_y;
-      WP_z = pausedSW_WP_z;
+      WP_x = pausedMission_WP_x;
+      WP_y = pausedMission_WP_y;
+      WP_z = pausedMission_WP_z;
 
       if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
 
@@ -709,6 +703,10 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       sweep_status = 0;
       nh_.setParam("sweep_status", sweep_status);
 
+      if(!vinspection_to_ceiling){
+        recomputeVerticalInspectionPath();
+      }
+
     }
 
   }else{
@@ -750,14 +748,11 @@ void MissionManager::performHovering(){
       performing_sweep = false;
 
       // save WP to allow resuming the sweeping
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
 
-      pausedSW_last_x = current_x;
-      pausedSW_last_y = current_y;
-      pausedSW_last_z = current_z;
-      pausedSW_yaw = initial_yaw_sweep;
+      pausedMission_yaw = initial_yaw_sweep;
 
     }
 
@@ -769,14 +764,11 @@ void MissionManager::performHovering(){
       performing_vinspection = false;
 
       // save WP to allow resuming the vertical inspection
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
 
-      pausedSW_last_x = current_x;
-      pausedSW_last_y = current_y;
-      pausedSW_last_z = current_z;
-      pausedSW_yaw = initial_yaw_vinspection;
+      pausedMission_yaw = initial_yaw_vinspection;
 
     }
 
@@ -952,14 +944,11 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       performing_sweep = false;
 
       // save WP to allow resuming the sweeping
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
 
-      pausedSW_last_x = current_x;
-      pausedSW_last_y = current_y;
-      pausedSW_last_z = current_z;
-      pausedSW_yaw = initial_yaw_sweep;
+      pausedMission_yaw = initial_yaw_sweep;
 
     }
 
@@ -971,14 +960,11 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       performing_vinspection = false;
 
       // save WP to allow resuming the vertical inspection
-      pausedSW_WP_x = WP_x;
-      pausedSW_WP_y = WP_y;
-      pausedSW_WP_z = WP_z;
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
 
-      pausedSW_last_x = current_x;
-      pausedSW_last_y = current_y;
-      pausedSW_last_z = current_z;
-      pausedSW_yaw = initial_yaw_vinspection;
+      pausedMission_yaw = initial_yaw_vinspection;
 
     }
 
@@ -1406,12 +1392,12 @@ void MissionManager::recomputeSweepingPath(){
   double first_z = mission_path->poses.at(0).pose.position.z;
   tf::Vector3 first_point(first_x, first_y, first_z);
   tf::Matrix3x3 mat;
-  mat.setRPY(0, 0, initial_yaw_sweep-pausedSW_yaw); //update in SW orientation
-  tf::Vector3 pausedSW_WP(pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z);
-  pausedSW_WP = pausedSW_WP - first_point;
-  tf::Vector3 pausedSW_WP_rot = mat * pausedSW_WP;
+  mat.setRPY(0, 0, initial_yaw_sweep-pausedMission_yaw); //update in SW orientation
+  tf::Vector3 pausedMission_WP(pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z);
+  pausedMission_WP = pausedMission_WP - first_point;
+  tf::Vector3 pausedMission_WP_rot = mat * pausedMission_WP;
   tf::Vector3 WP(WP_x, WP_y, WP_z);
-  tf::Vector3 offsetWPs = WP - pausedSW_WP_rot;
+  tf::Vector3 offsetWPs = WP - pausedMission_WP_rot;
 
   int num_points = mission_path->poses.size();
   double point_x, point_y, point_z;
@@ -1470,6 +1456,37 @@ void MissionManager::createVerticalInspectionPath(){
   //add last point
   point.pose.position.z = current_z;
   mission_path->poses.push_back(point);
+
+}
+
+void MissionManager::recomputeVerticalInspectionPath(){
+
+  double first_x = mission_path->poses.at(0).pose.position.x;
+  double first_y = mission_path->poses.at(0).pose.position.y;
+  double first_z = mission_path->poses.at(0).pose.position.z;
+  tf::Vector3 first_point(first_x, first_y, first_z);
+  tf::Matrix3x3 mat;
+  mat.setRPY(0, 0, initial_yaw_vinspection-pausedMission_yaw); //update in VI orientation
+  tf::Vector3 pausedMission_WP(pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z);
+  pausedMission_WP = pausedMission_WP - first_point;
+  tf::Vector3 pausedMission_WP_rot = mat * pausedMission_WP;
+  tf::Vector3 WP(WP_x, WP_y, WP_z);
+  tf::Vector3 offsetWPs = WP - pausedMission_WP_rot;
+
+  int num_points = mission_path->poses.size();
+  double point_x, point_y, point_z;
+  for(int i = 0; i < num_points; i++){
+    point_x = mission_path->poses.at(i).pose.position.x;
+    point_y = mission_path->poses.at(i).pose.position.y;
+    point_z = mission_path->poses.at(i).pose.position.z;
+    tf::Vector3 point(point_x, point_y, point_z);
+    point = point - first_point;
+    point = mat * point;
+    point = point + offsetWPs;
+    mission_path->poses.at(i).pose.position.x = point.getX();
+    mission_path->poses.at(i).pose.position.y = point.getY();
+    mission_path->poses.at(i).pose.position.z = point.getZ();
+  }
 
 }
 

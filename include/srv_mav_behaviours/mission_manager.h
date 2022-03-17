@@ -79,9 +79,8 @@ class MissionManager {
 
   double WP_x, WP_y, WP_z;
 
-  double pausedSW_WP_x, pausedSW_WP_y, pausedSW_WP_z;
-  double pausedSW_last_x, pausedSW_last_y, pausedSW_last_z;
-  double pausedSW_yaw;
+  double pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z;
+  double pausedMission_yaw;
 
   double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment;
   bool sweep_wall_to_wall;
