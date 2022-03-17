@@ -1411,7 +1411,7 @@ void MissionManager::recomputeSweepingPath(){
   pausedSW_WP = pausedSW_WP - first_point;
   tf::Vector3 pausedSW_WP_rot = mat * pausedSW_WP;
   tf::Vector3 WP(WP_x, WP_y, WP_z);
-  tf::Vector3 offsetWPs = WP - first_point - pausedSW_WP_rot;
+  tf::Vector3 offsetWPs = WP - pausedSW_WP_rot;
 
   int num_points = mission_path->poses.size();
   double point_x, point_y, point_z;
