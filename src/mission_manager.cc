@@ -1530,8 +1530,8 @@ void MissionManager::clearWPPath(){
 
   WP_path = nav_msgs::PathPtr(new nav_msgs::Path);
 
-  mission_path->header.frame_id = world_frame;
-  mission_path->header.stamp = ros::Time::now();
+  WP_path->header.frame_id = world_frame;
+  WP_path->header.stamp = ros::Time::now();
 
 }
 
