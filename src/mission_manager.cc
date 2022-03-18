@@ -397,6 +397,9 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
 
     pausedMission_yaw = initial_yaw_sweep;
 
+    removeLastWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+
   }else{
 
     ROS_WARN("No sweeping in course");
@@ -479,7 +482,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
         recomputeSweepingPath();
       }
 
-      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
       addWP2WPPath(WP_x, WP_y, WP_z);
 
     }
@@ -636,6 +639,9 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
 
     pausedMission_yaw = initial_yaw_vinspection;
 
+    removeLastWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+
   }else{
 
     ROS_WARN("No vertical inspection in course");
@@ -718,7 +724,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
         recomputeVerticalInspectionPath();
       }
 
-      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
       addWP2WPPath(WP_x, WP_y, WP_z);
 
     }
