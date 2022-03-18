@@ -54,6 +54,7 @@ class MissionManager {
 
   ros::Publisher pose_pub_;
   ros::Publisher mission_path_pub_;
+  ros::Publisher WP_path_pub_;
   ros::Subscriber pose_subs_;
   ros::Subscriber min_distance_left_subs_, min_distance_right_subs_, min_distance_up_subs_, min_distance_down_subs_;
 
@@ -104,6 +105,7 @@ class MissionManager {
 
   bool publish_mission_path;
   nav_msgs::PathPtr mission_path;
+  nav_msgs::PathPtr WP_path;
 
   double home_x, home_y, home_z;
 
@@ -160,6 +162,10 @@ class MissionManager {
   void recomputeSweepingPath();
   void createVerticalInspectionPath();
   void recomputeVerticalInspectionPath();
+
+  void publishWPPath();
+  void clearWPPath();
+  void addWP2WPPath(double x, double y, double z);
 
 };
 

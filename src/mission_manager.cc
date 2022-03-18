@@ -85,7 +85,8 @@ void MissionManager::configure(){
   WP_x = WP_y = WP_z = 0.0;
 
   publish_mission_path = false;
-  mission_path = nav_msgs::PathPtr(new nav_msgs::Path);
+  clearMissionPath();
+  clearWPPath();
 
   // --------------parameters for WP-based sweeping-----------------
 
@@ -135,6 +136,7 @@ void MissionManager::configure(){
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
   mission_path_pub_ = nh_.advertise<nav_msgs::Path>("mission_path", 1);
+  WP_path_pub_ = nh_.advertise<nav_msgs::Path>("wp_path", 1);
 
   // Subscribers
   pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
@@ -338,6 +340,9 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
       createSweepingPath();
       publish_mission_path = true;
     }
+
+    clearWPPath();
+    addWP2WPPath(WP_x, WP_y, WP_z);
   }
 
   return true;
@@ -474,6 +479,8 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
         recomputeSweepingPath();
       }
 
+      addWP2WPPath(WP_x, WP_y, WP_z);
+
     }
 
   }else{
@@ -571,6 +578,9 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
       createVerticalInspectionPath();
       publish_mission_path = true;
     }
+
+    clearWPPath();
+    addWP2WPPath(WP_x, WP_y, WP_z);
   }
 
   return true;
@@ -707,6 +717,8 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
         recomputeVerticalInspectionPath();
       }
 
+      addWP2WPPath(WP_x, WP_y, WP_z);
+
     }
 
   }else{
@@ -818,6 +830,10 @@ void MissionManager::performGoHome(){
     WP_y = home_y;
     WP_z = home_z;
 
+    clearWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+    addWP2WPPath(WP_x, WP_y, WP_z);
+
   }
 
 }
@@ -893,6 +909,10 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
     WP_x = point_x;
     WP_y = point_y;
     WP_z = point_z;
+
+    clearWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+    addWP2WPPath(WP_x, WP_y, WP_z);
 
   }
 
@@ -1034,6 +1054,8 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     }
   }
 
+  publishWPPath();
+
 }
 
 void MissionManager::performSweep(){
@@ -1152,6 +1174,10 @@ void MissionManager::performSweep(){
       WP_x = WP_x + world_incr.getX();
       WP_y = WP_y + world_incr.getY();
 
+    }
+
+    if(performing_sweep){// a new WP has been defined and the SW has not finished
+      addWP2WPPath(WP_x, WP_y, WP_z);
     }
 
   } 
@@ -1294,6 +1320,10 @@ void MissionManager::performVerticalInspection(){
 
       }
 
+    }
+
+    if(performing_vinspection){ // a new WP has been defined and the VI has not finished
+      addWP2WPPath(WP_x, WP_y, WP_z);
     }
 
   } 
@@ -1487,6 +1517,36 @@ void MissionManager::recomputeVerticalInspectionPath(){
     mission_path->poses.at(i).pose.position.y = point.getY();
     mission_path->poses.at(i).pose.position.z = point.getZ();
   }
+
+}
+
+void MissionManager::publishWPPath(){
+
+  WP_path_pub_.publish(WP_path);
+
+}
+
+void MissionManager::clearWPPath(){
+
+  WP_path = nav_msgs::PathPtr(new nav_msgs::Path);
+
+  mission_path->header.frame_id = world_frame;
+  mission_path->header.stamp = ros::Time::now();
+
+}
+
+void MissionManager::addWP2WPPath(double x, double y, double z){
+
+  geometry_msgs::PoseStamped point;
+
+  point.header.frame_id = world_frame;
+  point.header.stamp = ros::Time::now();
+  point.pose.orientation.w = 1.0;
+
+  point.pose.position.x = x;
+  point.pose.position.y = y;
+  point.pose.position.z = z;
+  WP_path->poses.push_back(point);
 
 }
 
