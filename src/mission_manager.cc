@@ -976,6 +976,9 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
       pausedMission_yaw = initial_yaw_sweep;
 
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
+
     }
 
     if(performing_vinspection){//pause the vertical inspection in course (if any)
@@ -991,6 +994,9 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       pausedMission_WP_z = WP_z;
 
       pausedMission_yaw = initial_yaw_vinspection;
+
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
 
     }
 
