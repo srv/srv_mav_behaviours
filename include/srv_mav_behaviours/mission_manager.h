@@ -164,8 +164,9 @@ class MissionManager {
   void recomputeVerticalInspectionPath();
 
   void publishWPPath();
-  void clearWPPath();
+  void newWPPath();
   void addWP2WPPath(double x, double y, double z);
+  void removeLastWPPath();
 
 };
 

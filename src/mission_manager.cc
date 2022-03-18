@@ -86,7 +86,7 @@ void MissionManager::configure(){
 
   publish_mission_path = false;
   clearMissionPath();
-  clearWPPath();
+  newWPPath();
 
   // --------------parameters for WP-based sweeping-----------------
 
@@ -341,7 +341,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
       publish_mission_path = true;
     }
 
-    clearWPPath();
+    newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
   }
 
@@ -479,6 +479,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
         recomputeSweepingPath();
       }
 
+      removeLastWPPath();
       addWP2WPPath(WP_x, WP_y, WP_z);
 
     }
@@ -579,7 +580,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
       publish_mission_path = true;
     }
 
-    clearWPPath();
+    newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
   }
 
@@ -717,6 +718,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
         recomputeVerticalInspectionPath();
       }
 
+      removeLastWPPath();
       addWP2WPPath(WP_x, WP_y, WP_z);
 
     }
@@ -830,8 +832,7 @@ void MissionManager::performGoHome(){
     WP_y = home_y;
     WP_z = home_z;
 
-    clearWPPath();
-    addWP2WPPath(current_x, current_y, current_z);
+    newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
 
   }
@@ -910,8 +911,7 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
     WP_y = point_y;
     WP_z = point_z;
 
-    clearWPPath();
-    addWP2WPPath(current_x, current_y, current_z);
+    newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
 
   }
@@ -1526,12 +1526,23 @@ void MissionManager::publishWPPath(){
 
 }
 
-void MissionManager::clearWPPath(){
+void MissionManager::newWPPath(){
 
   WP_path = nav_msgs::PathPtr(new nav_msgs::Path);
 
   WP_path->header.frame_id = world_frame;
   WP_path->header.stamp = ros::Time::now();
+
+  geometry_msgs::PoseStamped point;
+
+  point.header.frame_id = world_frame;
+  point.header.stamp = ros::Time::now();
+  point.pose.orientation.w = 1.0;
+
+  point.pose.position.x = current_x;
+  point.pose.position.y = current_y;
+  point.pose.position.z = current_z;
+  WP_path->poses.push_back(point);
 
 }
 
@@ -1547,6 +1558,12 @@ void MissionManager::addWP2WPPath(double x, double y, double z){
   point.pose.position.y = y;
   point.pose.position.z = z;
   WP_path->poses.push_back(point);
+
+}
+
+void MissionManager::removeLastWPPath(){
+
+  WP_path->poses.pop_back();
 
 }
 
