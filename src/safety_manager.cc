@@ -103,9 +103,12 @@ void SafetyManager::configure(){
   position_ctrl_vel_received = false;
   point_cloud_received = false;
   height_received = false;
-  distance_ceiling_received = false;
+  //distance_ceiling_received = false;
+  distance_ceiling_received = true; // Teraranger removed. No distance to the ceiling available!
   distance_ground_received = false;
   imu_received = false;
+
+  distance_ceiling = 10.0; // Teraranger removed. No distance to the ceiling available!
 
   position_control_granted = false;
   //prevent all the autonomous behaviours
