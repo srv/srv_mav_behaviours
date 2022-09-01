@@ -72,6 +72,10 @@ void MissionManager::configure(){
   nh_.param("vinspection_min_ceiling_dist", vinspection_min_ceiling_dist, 3.0);
   ROS_INFO("Vert. inspection up-to-ceiling min. distance: %2.2f", vinspection_min_ceiling_dist);
 
+  nh_.param("follow_trajectory", follow_trajectory, false);
+  if (follow_trajectory) ROS_INFO("Configured to follow trajectories");
+  else ROS_INFO("Configured to NOT follow trajectories (only go to WPs)");
+
   checkParameters();
 
   pose_received = false;
@@ -1026,6 +1030,22 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     pose_WP->position.x = WP_x;
     pose_WP->position.y = WP_y;
     pose_WP->position.z = WP_z;
+
+    if(follow_trajectory){
+
+      double errorX = WP_x-current_x;
+      double errorY = WP_y-current_y;
+      double errorZ = WP_z-current_z;
+      double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+      double carrotChasing_delta = WP_error; //kind of carrot chasing with delta equals to WP_error
+
+      if(errorWP > carrotChasing_delta){
+        //overwrite WP before publication
+        pose_WP->position.x = current_x + (errorX/errorWP) * carrotChasing_delta;
+        pose_WP->position.y = current_y + (errorY/errorWP) * carrotChasing_delta;
+        pose_WP->position.z = current_z + (errorZ/errorWP) * carrotChasing_delta;
+      }
+    }
 
     pose_pub_.publish(pose_WP);
 
