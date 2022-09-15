@@ -1033,17 +1033,70 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     if(follow_trajectory){
 
+      double carrotChasing_delta = WP_error;
+
       double errorX = WP_x-current_x;
       double errorY = WP_y-current_y;
       double errorZ = WP_z-current_z;
       double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
-      double carrotChasing_delta = WP_error; //kind of carrot chasing with delta equals to WP_error
 
-      if(errorWP > carrotChasing_delta){
-        //overwrite WP before publication
-        pose_WP->position.x = current_x + (errorX/errorWP) * carrotChasing_delta;
-        pose_WP->position.y = current_y + (errorY/errorWP) * carrotChasing_delta;
-        pose_WP->position.z = current_z + (errorZ/errorWP) * carrotChasing_delta;
+      if(errorWP > WP_error){ //we are far from the WP
+
+        double prev_WP_x = WP_path->poses.back().pose.position.x;
+        double prev_WP_y = WP_path->poses.back().pose.position.y;
+        double prev_WP_z = WP_path->poses.back().pose.position.z;
+
+        tf::Vector3 current_pose_vect = tf::Vector3(current_x, current_y, current_z);
+        tf::Vector3 WP_vect = tf::Vector3(WP_x, WP_y, WP_z);
+        tf::Vector3 prev_WP_vect = tf::Vector3(prev_WP_x, prev_WP_y, prev_WP_z);
+        
+        //compute the direction vector of the path between WPs
+        double Ap = WP_x - prev_WP_x;
+        double Bp = WP_y - prev_WP_y;
+        double Cp = WP_z - prev_WP_z;
+        tf::Vector3 WPs_dir_vect = tf::Vector3(Ap, Bp, Cp);
+
+        //compute the distance from the current position to the line connecting both WPs
+        //dist = abs(cross((current-prev_WP),v))/abs(v) % distance from the current pose to the line containing both WPs
+        double distToPath = ((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length()/WPs_dir_vect.length();
+
+        //get the plane (Ap*x + Bp*y + Cp*z + D = 0) containing the current pose and whose normal is the direction vector
+        //of the line containing both WPs. The only missing number is D.
+        double D = -(Ap*current_x + Bp*current_y + Cp*current_z);
+
+        //compute the point C being the closest point in the path
+        //  the equation of the line connecting both WPs is: 
+        //  (x,y,z) = (prev_WP_x,prev_WP_y,prev_WP_z) + lambda*(Ap,Bp,Cp)
+        double lambda = (Ap*prev_WP_x + Bp*prev_WP_y + Cp*prev_WP_z + D) / -(Ap*Ap + Bp*Bp + Cp*Cp);
+
+        double closest_x = prev_WP_x + lambda * Ap;
+        double closest_y = prev_WP_y + lambda * Bp;
+        double closest_z = prev_WP_z + lambda * Cp;
+        tf::Vector3 closest_point_vect = tf::Vector3(closest_x, closest_y, closest_z);
+
+        double distToPrevWP = prev_WP_vect.distance(closest_point_vect); // distance to the previous WP
+        double distToWP = WP_vect.distance(closest_point_vect); //distance to the current WP
+        double distWPs = prev_WP_vect.distance(WP_vect); //distance between WPs
+
+        
+        if((distWPs > distToPrevWP) &&(distWPs > distToWP)){//if C is between the two WPs
+
+          if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
+
+            // the WP is set to C
+            pose_WP->position.x = closest_x;
+            pose_WP->position.y = closest_y;
+            pose_WP->position.z = closest_z;
+
+          }else{
+            // the WP is set to C + a vector pointing to the original WP with length (carrotChasing_delta - distToPath)
+            tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(carrotChasing_delta - distToPath));
+            pose_WP->position.x = VTP.getX();
+            pose_WP->position.y = VTP.getY();
+            pose_WP->position.z = VTP.getZ();
+          }
+        }//otherwise the WP is not modified
+
       }
     }
 
