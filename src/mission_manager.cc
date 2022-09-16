@@ -1269,12 +1269,12 @@ void MissionManager::performSweep(){
   if(!performing_sweep){ // the sweeping has finished now
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    // srv_mav_behaviours::GiveUpControl give_up_control;
+    // give_up_control_client_.call(give_up_control);
 
     // start a hovering in the last WP instead of giving up control
-    // nh_.setParam("hovering", true);
-    // ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+    nh_.setParam("hovering", true);
+    ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
 
   }
 
@@ -1419,12 +1419,12 @@ void MissionManager::performVerticalInspection(){
   if(!performing_vinspection){ // the vertical inspection has finished now
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    // srv_mav_behaviours::GiveUpControl give_up_control;
+    // give_up_control_client_.call(give_up_control);
 
     // start a hovering in the last WP instead of giving up control
-    // nh_.setParam("hovering", true);
-    // ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+    nh_.setParam("hovering", true);
+    ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
 
   }
 
