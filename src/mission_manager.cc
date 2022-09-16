@@ -1042,9 +1042,10 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
       if(errorWP > WP_error){ //we are far from the WP
 
-        double prev_WP_x = WP_path->poses.back().pose.position.x;
-        double prev_WP_y = WP_path->poses.back().pose.position.y;
-        double prev_WP_z = WP_path->poses.back().pose.position.z;
+        int WPs_num = WP_path->poses.size();
+        double prev_WP_x = WP_path->poses.at(WPs_num-2).pose.position.x;
+        double prev_WP_y = WP_path->poses.at(WPs_num-2).pose.position.y;
+        double prev_WP_z = WP_path->poses.at(WPs_num-2).pose.position.z;
 
         tf::Vector3 current_pose_vect = tf::Vector3(current_x, current_y, current_z);
         tf::Vector3 WP_vect = tf::Vector3(WP_x, WP_y, WP_z);
@@ -1057,38 +1058,36 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         tf::Vector3 WPs_dir_vect = tf::Vector3(Ap, Bp, Cp);
 
         //compute the distance from the current position to the line connecting both WPs
-        //dist = abs(cross((current-prev_WP),v))/abs(v) % distance from the current pose to the line containing both WPs
         double distToPath = ((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length()/WPs_dir_vect.length();
 
         //get the plane (Ap*x + Bp*y + Cp*z + D = 0) containing the current pose and whose normal is the direction vector
-        //of the line containing both WPs. The only missing number is D.
+        //of the line containing both WPs. The only missing term is D.
         double D = -(Ap*current_x + Bp*current_y + Cp*current_z);
 
-        //compute the point C being the closest point in the path
+        //compute the point C being point in the path which is the closest to the current position
         //  the equation of the line connecting both WPs is: 
         //  (x,y,z) = (prev_WP_x,prev_WP_y,prev_WP_z) + lambda*(Ap,Bp,Cp)
         double lambda = (Ap*prev_WP_x + Bp*prev_WP_y + Cp*prev_WP_z + D) / -(Ap*Ap + Bp*Bp + Cp*Cp);
-
         double closest_x = prev_WP_x + lambda * Ap;
         double closest_y = prev_WP_y + lambda * Bp;
         double closest_z = prev_WP_z + lambda * Cp;
         tf::Vector3 closest_point_vect = tf::Vector3(closest_x, closest_y, closest_z);
 
-        double distToPrevWP = prev_WP_vect.distance(closest_point_vect); // distance to the previous WP
-        double distToWP = WP_vect.distance(closest_point_vect); //distance to the current WP
+        double distToPrevWP = prev_WP_vect.distance(closest_point_vect); // distance from C to the previous WP
+        double distToWP = WP_vect.distance(closest_point_vect); //distance from C to the current WP
         double distWPs = prev_WP_vect.distance(WP_vect); //distance between WPs
 
         
         if((distWPs > distToPrevWP) &&(distWPs > distToWP)){//if C is between the two WPs
 
           if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
-
+            //we are far from the path --> go back to the path
             // the WP is set to C
             pose_WP->position.x = closest_x;
             pose_WP->position.y = closest_y;
             pose_WP->position.z = closest_z;
 
-          }else{
+          }else{ // we are close to the path
             // the WP is set to C + a vector pointing to the original WP with length (carrotChasing_delta - distToPath)
             tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(carrotChasing_delta - distToPath));
             pose_WP->position.x = VTP.getX();
@@ -1200,7 +1199,7 @@ void MissionManager::performSweep(){
 
       if(aux_WP_z < final_z_sweep){
 
-        ROS_WARN("Sweep finised");
+        ROS_WARN("Sweep finished");
 
         performing_sweep = false;
         sweep_status = 0;
@@ -1273,6 +1272,10 @@ void MissionManager::performSweep(){
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
 
+    // start a hovering in the last WP instead of giving up control
+    // nh_.setParam("hovering", true);
+    // ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+
   }
 
 }
@@ -1303,7 +1306,7 @@ void MissionManager::performVerticalInspection(){
 
           if (vinspection_state == 0){ // the state says to go up again
             
-            ROS_WARN("Vertical inspection finised");
+            ROS_WARN("Vertical inspection finished");
 
             performing_vinspection = false;
             vinspection_status = 0;
@@ -1326,7 +1329,7 @@ void MissionManager::performVerticalInspection(){
 
           if (vinspection_state == 0){ // the state says to go up again
             
-            ROS_WARN("Vertical inspection finised");
+            ROS_WARN("Vertical inspection finished");
 
             performing_vinspection = false;
             vinspection_status = 0;
@@ -1418,6 +1421,10 @@ void MissionManager::performVerticalInspection(){
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpControl give_up_control;
     give_up_control_client_.call(give_up_control);
+
+    // start a hovering in the last WP instead of giving up control
+    // nh_.setParam("hovering", true);
+    // ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
 
   }
 
