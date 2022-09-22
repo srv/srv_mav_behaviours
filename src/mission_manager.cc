@@ -1078,7 +1078,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         double distWPs = prev_WP_vect.distance(WP_vect); //distance between WPs
 
         
-        if((distWPs > distToPrevWP) &&(distWPs > distToWP)){//if C is between the two WPs
+        if((distWPs > distToPrevWP) && (distWPs > distToWP)){//if C is between the two WPs
 
           if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
             //we are far from the path --> go back to the path
@@ -1094,6 +1094,21 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
             pose_WP->position.y = VTP.getY();
             pose_WP->position.z = VTP.getZ();
           }
+
+	  //ROS_WARN("WP: %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+	  //ROS_WARN("prev_WP: %2.2f, %2.2f, %2.2f", prev_WP_x, prev_WP_y, prev_WP_z);
+	  //ROS_WARN("VTP: %2.2f, %2.2f, %2.2f", pose_WP->position.x, pose_WP->position.y, pose_WP->position.z);
+	  //ROS_WARN("-----------");
+	}else if(distToWP > distToPrevWP){//if C is not between the two WPs and C is closer to the previous WP
+	  // go to the previous WP
+          pose_WP->position.x = prev_WP_x;
+          pose_WP->position.y = prev_WP_y;
+          pose_WP->position.z = prev_WP_z;
+
+	  //ROS_WARN("WP: %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+	  //ROS_WARN("prev_WP: %2.2f, %2.2f, %2.2f", prev_WP_x, prev_WP_y, prev_WP_z);
+	  //ROS_WARN("VTP: %2.2f, %2.2f, %2.2f", pose_WP->position.x, pose_WP->position.y, pose_WP->position.z);
+	  //ROS_WARN("-----------");
         }//otherwise the WP is not modified
 
       }
