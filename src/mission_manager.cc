@@ -72,7 +72,7 @@ void MissionManager::configure(){
   nh_.param("vinspection_min_ceiling_dist", vinspection_min_ceiling_dist, 3.0);
   ROS_INFO("Vert. inspection up-to-ceiling min. distance: %2.2f", vinspection_min_ceiling_dist);
 
-  nh_.param("follow_trajectory", /follow_trajectory, false);
+  nh_.param("follow_trajectory", follow_trajectory, false);
   if (follow_trajectory) ROS_INFO("Configured to follow trajectories");
   else ROS_INFO("Configured to NOT follow trajectories (only go to WPs)");
 
@@ -1109,6 +1109,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
           //ROS_WARN("prev_WP: %2.2f, %2.2f, %2.2f", prev_WP_x, prev_WP_y, prev_WP_z);
           //ROS_WARN("VTP: %2.2f, %2.2f, %2.2f", pose_WP->position.x, pose_WP->position.y, pose_WP->position.z);
           //ROS_WARN("-----------");
+
         }//otherwise the WP is not modified
 
       }
