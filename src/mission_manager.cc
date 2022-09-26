@@ -1078,7 +1078,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         double distWPs = prev_WP_vect.distance(WP_vect); //distance between WPs
 
         
-        if((distWPs > distToPrevWP) && (distWPs > distToWP)){//if C is between the two WPs
+        if(((distWPs > distToPrevWP) && (distWPs > distToWP)) || (distToPrevWP < WP_error)){//if C is between the two WPs or C is very close to the previous_WP
 
           if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
             //we are far from the path --> go back to the path
