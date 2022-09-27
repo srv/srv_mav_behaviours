@@ -37,7 +37,7 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
   min_height = config.min_height;
   max_height = config.max_height;
 
-  WP_error = config.WP_error;
+  WP_tolerance = config.WP_tolerance;
 
   home_z = config.home_z;
 
@@ -60,8 +60,8 @@ void MissionManager::configure(){
   nh_.param("max_height", max_height, 2.0);
   ROS_INFO("Max height: %2.2f", max_height); // maximum height for the autonomous behaviours
 
-  nh_.param("WP_error", WP_error, 0.3);
-  ROS_INFO("WP_error: %2.2f", WP_error);
+  nh_.param("WP_tolerance", WP_tolerance, 0.3);
+  ROS_INFO("WP_tolerance: %2.2f", WP_tolerance);
 
   nh_.param("home_z", home_z, 1.5);
   ROS_INFO("Home Z: %2.2f", home_z);
@@ -177,7 +177,7 @@ void MissionManager::checkParameters(){
 
   min_height = abs(min_height);
   max_height = abs(max_height);
-  WP_error = abs(WP_error);
+  WP_tolerance = abs(WP_tolerance);
   home_z = abs(home_z);
   sweep_min_lateral_dist = abs(sweep_min_lateral_dist);
   vinspection_min_ceiling_dist = abs(vinspection_min_ceiling_dist);
@@ -1033,14 +1033,14 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     if(follow_trajectory){
 
-      double carrotChasing_delta = WP_error;
+      double carrotChasing_delta = WP_tolerance;
 
       double errorX = WP_x-current_x;
       double errorY = WP_y-current_y;
       double errorZ = WP_z-current_z;
       double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-      if(errorWP > WP_error){ //we are far from the WP
+      if(errorWP > WP_tolerance){ //we are far from the WP
 
         int WPs_num = WP_path->poses.size();
         double prev_WP_x = WP_path->poses.at(WPs_num-2).pose.position.x;
@@ -1078,7 +1078,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         double distWPs = prev_WP_vect.distance(WP_vect); //distance between WPs
 
         
-        if(((distWPs > distToPrevWP) && (distWPs > distToWP)) || (distToPrevWP < WP_error)){//if C is between the two WPs or C is very close to the previous_WP
+        if(((distWPs > distToPrevWP) && (distWPs > distToWP)) || (distToPrevWP < WP_tolerance)){//if C is between the two WPs or C is very close to the previous_WP
 
           if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
             //we are far from the path --> go back to the path
@@ -1166,7 +1166,7 @@ void MissionManager::performSweep(){
   double errorXY = sqrt(errorX*errorX + errorY*errorY);
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < WP_error){ // the WP has been reached
+  if(errorWP < WP_tolerance){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -1188,7 +1188,7 @@ void MissionManager::performSweep(){
 
         // double lateral_dist = (sweep_state == 0) ? min_dist_right : min_dist_left;
 
-        // if(lateral_dist < (sweep_min_lateral_dist + WP_error)) { // wall found
+        // if(lateral_dist < (sweep_min_lateral_dist + WP_tolerance)) { // wall found
 
         if(sweep_reaching_end){
 
@@ -1304,7 +1304,7 @@ void MissionManager::performVerticalInspection(){
 
   double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
-  if(errorWP < WP_error){ // the WP has been reached
+  if(errorWP < WP_tolerance){ // the WP has been reached
 
     // update the sweep_state if necessary
 
@@ -1334,7 +1334,7 @@ void MissionManager::performVerticalInspection(){
 
       }else{// vertical inspection up-to-ceiling
 
-        // if(((vinspection_state == 0) && (min_dist_up < (vinspection_min_ceiling_dist + WP_error))) || 
+        // if(((vinspection_state == 0) && (min_dist_up < (vinspection_min_ceiling_dist + WP_tolerance))) || 
         //     ((vinspection_state == 2) && (current_z <= final_z_vinspection))){
 
         if(vinspection_reaching_end){

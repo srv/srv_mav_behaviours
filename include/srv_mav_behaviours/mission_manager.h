@@ -64,7 +64,7 @@ class MissionManager {
 
   // Params
   double min_height, max_height;
-  double WP_error;
+  double WP_tolerance;
   double sweep_min_lateral_dist;
   double vinspection_min_ceiling_dist;
   bool follow_trajectory;
