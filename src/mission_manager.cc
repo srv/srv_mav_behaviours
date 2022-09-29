@@ -44,6 +44,9 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
   sweep_min_lateral_dist = config.sweep_min_lateral_dist;
   vinspection_min_ceiling_dist = config.vinspection_min_ceiling_dist;
 
+  follow_trajectory = config.follow_trajectory;
+  follow_trajectory_delta = config.follow_trajectory_delta;
+
   checkParameters();
 
 }
@@ -75,6 +78,9 @@ void MissionManager::configure(){
   nh_.param("follow_trajectory", follow_trajectory, false);
   if (follow_trajectory) ROS_INFO("Configured to follow trajectories");
   else ROS_INFO("Configured to NOT follow trajectories (only go to WPs)");
+
+  nh_.param("follow_trajectory_delta", follow_trajectory_delta, 0.3);
+  ROS_INFO("Trajectory following delta: %2.2f", follow_trajectory_delta);
 
   checkParameters();
 
@@ -181,6 +187,7 @@ void MissionManager::checkParameters(){
   home_z = abs(home_z);
   sweep_min_lateral_dist = abs(sweep_min_lateral_dist);
   vinspection_min_ceiling_dist = abs(vinspection_min_ceiling_dist);
+  follow_trajectory_delta = abs(follow_trajectory_delta);
 
   if(min_height < 0.5){
 
@@ -217,7 +224,21 @@ void MissionManager::checkParameters(){
   if(vinspection_min_ceiling_dist < 1.5){
 
     vinspection_min_ceiling_dist = 1.5;
-    ROS_WARN("vinspection_min_ceiling_dist too low, sweep_min_lateral_dist set to %2.2f", vinspection_min_ceiling_dist);
+    ROS_WARN("vinspection_min_ceiling_dist too low, vinspection_min_ceiling_dist set to %2.2f", vinspection_min_ceiling_dist);
+
+  }
+
+  if(WP_tolerance < 0.1){
+
+    WP_tolerance = 0.1;
+    ROS_WARN("WP_tolerance too low, WP_tolerance set to %2.2f", WP_tolerance);
+
+  }
+
+  if(follow_trajectory_delta < 0.1){
+
+    follow_trajectory_delta = 0.1;
+    ROS_WARN("follow_trajectory_delta too low, follow_trajectory_delta set to %2.2f", follow_trajectory_delta);
 
   }
 
@@ -1033,8 +1054,6 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     if(follow_trajectory){
 
-      double carrotChasing_delta = WP_tolerance;
-
       double errorX = WP_x-current_x;
       double errorY = WP_y-current_y;
       double errorZ = WP_z-current_z;
@@ -1080,16 +1099,16 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         
         if(((distWPs > distToPrevWP) && (distWPs > distToWP)) || (distToPrevWP < WP_tolerance)){//if C is between the two WPs or C is very close to the previous_WP
 
-          if(distToPath > carrotChasing_delta){ //distToPath is larger than the carrotChasing_delta then
-            //we are far from the path --> go back to the path
+          if(distToPath > follow_trajectory_delta){ //distToPath is larger than the follow_trajectory_delta then
+            // we are far from the path --> go back to the path
             // the WP is set to C
             pose_WP->position.x = closest_x;
             pose_WP->position.y = closest_y;
             pose_WP->position.z = closest_z;
 
           }else{ // we are close to the path
-            // the WP is set to C + a vector pointing to the original WP with length (carrotChasing_delta - distToPath)
-            tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(carrotChasing_delta - distToPath));
+            // the WP is set to C + a vector pointing to the original WP with length (follow_trajectory_delta - distToPath)
+            tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta - distToPath));
             pose_WP->position.x = VTP.getX();
             pose_WP->position.y = VTP.getY();
             pose_WP->position.z = VTP.getZ();

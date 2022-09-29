@@ -68,6 +68,7 @@ class MissionManager {
   double sweep_min_lateral_dist;
   double vinspection_min_ceiling_dist;
   bool follow_trajectory;
+  double follow_trajectory_delta;
 
   // Global variables
   std::string world_frame;
