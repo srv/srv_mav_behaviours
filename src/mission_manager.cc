@@ -45,7 +45,8 @@ void MissionManager::dynReconfig(srv_mav_behaviours::mission_managerConfig &conf
   vinspection_min_ceiling_dist = config.vinspection_min_ceiling_dist;
 
   follow_trajectory = config.follow_trajectory;
-  follow_trajectory_delta = config.follow_trajectory_delta;
+  follow_trajectory_delta = config.follow_trajectory_delta; // maximum distance to VTP
+  follow_trajectory_lambda = config.follow_trajectory_lambda; // maximum distance to the path
 
   checkParameters();
 
@@ -81,6 +82,9 @@ void MissionManager::configure(){
 
   nh_.param("follow_trajectory_delta", follow_trajectory_delta, 0.3);
   ROS_INFO("Trajectory following delta: %2.2f", follow_trajectory_delta);
+
+  nh_.param("follow_trajectory_lambda", follow_trajectory_lambda, 0.3);
+  ROS_INFO("Trajectory following lambda: %2.2f", follow_trajectory_lambda);
 
   checkParameters();
 
@@ -188,6 +192,7 @@ void MissionManager::checkParameters(){
   sweep_min_lateral_dist = abs(sweep_min_lateral_dist);
   vinspection_min_ceiling_dist = abs(vinspection_min_ceiling_dist);
   follow_trajectory_delta = abs(follow_trajectory_delta);
+  follow_trajectory_lambda = abs(follow_trajectory_lambda);
 
   if(min_height < 0.5){
 
@@ -239,6 +244,13 @@ void MissionManager::checkParameters(){
 
     follow_trajectory_delta = 0.1;
     ROS_WARN("follow_trajectory_delta too low, follow_trajectory_delta set to %2.2f", follow_trajectory_delta);
+
+  }
+
+  if(follow_trajectory_lambda < 0.1){
+
+    follow_trajectory_lambda = 0.1;
+    ROS_WARN("follow_trajectory_lambda too low, follow_trajectory_lambda set to %2.2f", follow_trajectory_lambda);
 
   }
 
@@ -1108,7 +1120,9 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
           }else{ // we are close to the path
             // the WP is set to C + a vector pointing to the original WP with length (follow_trajectory_delta - distToPath)
-            tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta - distToPath));
+            // tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta - distToPath));
+            // the WP is set to C + a vector pointing to the original WP with length (follow_trajectory_delta * (1-distToPath/follow_trajectory_lambda))
+            tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta * (1-(distToPath/follow_trajectory_lambda))));
             pose_WP->position.x = VTP.getX();
             pose_WP->position.y = VTP.getY();
             pose_WP->position.z = VTP.getZ();
