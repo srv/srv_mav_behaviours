@@ -1089,7 +1089,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         tf::Vector3 WPs_dir_vect = tf::Vector3(Ap, Bp, Cp);
 
         //compute the distance from the current position to the line connecting both WPs
-        double distToPath = ((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length()/WPs_dir_vect.length();
+        double distToPath = (((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length())/(WPs_dir_vect.length());
 
         //get the plane (Ap*x + Bp*y + Cp*z + D = 0) containing the current pose and whose normal is the direction vector
         //of the line containing both WPs. The only missing term is D.
@@ -1111,7 +1111,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         
         if(((distWPs > distToPrevWP) && (distWPs > distToWP)) || (distToPrevWP < WP_tolerance)){//if C is between the two WPs or C is very close to the previous_WP
 
-          if(distToPath > follow_trajectory_delta){ //distToPath is larger than the follow_trajectory_delta then
+          if(distToPath > follow_trajectory_lambda){ //distToPath is larger than the follow_trajectory_lambda then
             // we are far from the path --> go back to the path
             // the WP is set to C
             pose_WP->position.x = closest_x;
@@ -1123,9 +1123,14 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
             // tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta - distToPath));
             // the WP is set to C + a vector pointing to the original WP with length (follow_trajectory_delta * (1-distToPath/follow_trajectory_lambda))
             tf::Vector3 VTP = closest_point_vect + (WPs_dir_vect.normalize()*(follow_trajectory_delta * (1-(distToPath/follow_trajectory_lambda))));
-            pose_WP->position.x = VTP.getX();
-            pose_WP->position.y = VTP.getY();
-            pose_WP->position.z = VTP.getZ();
+
+            double distToVTP = VTP.distance(closest_point_vect); //distance from C to the VTP
+            
+            if(distToVTP < distToWP){ // the VTP is closer than the WP
+              pose_WP->position.x = VTP.getX();
+              pose_WP->position.y = VTP.getY();
+              pose_WP->position.z = VTP.getZ();
+            }
           }
 
           //ROS_WARN("WP: %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
