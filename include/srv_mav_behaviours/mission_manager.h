@@ -22,7 +22,7 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/Pose.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Range.h>
 #include <nav_msgs/Path.h>
 #include <tf/tf.h>
@@ -55,7 +55,7 @@ class MissionManager {
   ros::Publisher pose_pub_;
   ros::Publisher mission_path_pub_;
   ros::Publisher WP_path_pub_;
-  ros::Subscriber pose_subs_;
+  ros::Subscriber odom_subs_;
   ros::Subscriber min_distance_left_subs_, min_distance_right_subs_, min_distance_up_subs_, min_distance_down_subs_;
 
   ros::Timer timer_;
@@ -75,7 +75,7 @@ class MissionManager {
   std::string world_frame;
   double current_x, current_y, current_z, current_yaw;
 
-  bool pose_received;
+  bool odom_received;
 
   double min_dist_left, min_dist_right, min_dist_up, min_dist_down;
 
@@ -144,7 +144,7 @@ class MissionManager {
   bool goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res);
 
   // Callbacks
-  void poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+  void odomClb(const nav_msgs::Odometry::ConstPtr& odom_msg);
   void minDistanceLeftClb(const sensor_msgs::Range::ConstPtr& range_msg);
   void minDistanceRightClb(const sensor_msgs::Range::ConstPtr& range_msg);
   void minDistanceUpClb(const sensor_msgs::Range::ConstPtr& range_msg);

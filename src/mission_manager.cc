@@ -88,7 +88,7 @@ void MissionManager::configure(){
 
   checkParameters();
 
-  pose_received = false;
+  odom_received = false;
 
   min_dist_left = min_dist_right = min_dist_up = min_dist_down = INFINITY;
 
@@ -153,7 +153,7 @@ void MissionManager::configure(){
   WP_path_pub_ = nh_.advertise<nav_msgs::Path>("wp_path", 1);
 
   // Subscribers
-  pose_subs_ = nh_.subscribe("pose", 1, &MissionManager::poseClb, this);
+  odom_subs_ = nh_.subscribe("odom", 1, &MissionManager::odomClb, this);
   min_distance_left_subs_ = nh_.subscribe("min_distance_left", 1, &MissionManager::minDistanceLeftClb, this);
   min_distance_right_subs_ = nh_.subscribe("min_distance_right", 1, &MissionManager::minDistanceRightClb, this);
   min_distance_up_subs_ = nh_.subscribe("min_distance_up", 1, &MissionManager::minDistanceUpClb, this);
@@ -282,7 +282,7 @@ void MissionManager::minDistanceDownClb(const sensor_msgs::Range::ConstPtr& rang
 
 bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, srv_mav_behaviours::StartSweep::Response &res){
 
-  if(!pose_received) return false;
+  if(!odom_received) return false;
 
   if(performing_sweep || (sweep_status == 2)){
     ROS_WARN("Sweep already in process!!");
@@ -535,7 +535,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
 
 bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalInspection::Request &req, srv_mav_behaviours::StartVerticalInspection::Response &res){
 
-  if(!pose_received) return false;
+  if(!odom_received) return false;
 
   if(performing_vinspection || (vinspection_status == 2)){
     ROS_WARN("Vertical inspection already in process!!");
@@ -777,7 +777,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
 
 bool MissionManager::hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
-  if(!pose_received) return false;
+  if(!odom_received) return false;
 
   performHovering();
   return true;
@@ -842,7 +842,7 @@ void MissionManager::performHovering(){
 
 bool MissionManager::goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
-  if(!pose_received) return false;
+  if(!odom_received) return false;
 
   performGoHome();
   return true;
@@ -884,7 +884,7 @@ void MissionManager::performGoHome(){
 
 bool MissionManager::setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
-  if(!pose_received) return false;
+  if(!odom_received) return false;
   
   home_x = current_x;
   home_y = current_y;
@@ -961,27 +961,27 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
 
 }
 
-void MissionManager::poseClb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg){
+void MissionManager::odomClb(const nav_msgs::Odometry::ConstPtr& odom_msg){
 
-  current_x = pose_msg->pose.pose.position.x;
-  current_y = pose_msg->pose.pose.position.y;
-  current_z = pose_msg->pose.pose.position.z;
+  current_x = odom_msg->pose.pose.position.x;
+  current_y = odom_msg->pose.pose.position.y;
+  current_z = odom_msg->pose.pose.position.z;
 
-  world_frame = pose_msg->header.frame_id;
+  world_frame = odom_msg->header.frame_id;
 
   tf::Quaternion q;
-  tf::quaternionMsgToTF(pose_msg->pose.pose.orientation, q);
+  tf::quaternionMsgToTF(odom_msg->pose.pose.orientation, q);
   tf::Matrix3x3 m(q);
   double curr_roll, curr_pitch;
   m.getRPY(curr_roll, curr_pitch, current_yaw);
 
-  pose_received = true;
+  odom_received = true;
 
 }
 
 void MissionManager::timerClb(const ros::TimerEvent& event){
 
-  if(!(pose_received)) return;
+  if(!(odom_received)) return;
 
   bool position_control_granted;
   nh_.getParam("position_control_granted", position_control_granted);
