@@ -58,8 +58,10 @@ generate_dynamic_reconfigure_options(
 # Generate services in the 'srv' folder
 add_service_files(
   FILES
-  RequestControl.srv
-  GiveUpControl.srv
+  RequestPositionControl.srv
+  GiveUpPositionControl.srv
+  RequestYawControl.srv
+  GiveUpYawControl.srv
   StartSweep.srv
   StartVerticalInspection.srv
   GoToPoint.srv

@@ -33,8 +33,10 @@
 #include <dynamic_reconfigure/server.h>
 #include <srv_mav_behaviours/safety_managerConfig.h>
 
-#include <srv_mav_behaviours/RequestControl.h>
-#include <srv_mav_behaviours/GiveUpControl.h>
+#include <srv_mav_behaviours/RequestPositionControl.h>
+#include <srv_mav_behaviours/GiveUpPositionControl.h>
+#include <srv_mav_behaviours/RequestYawControl.h>
+#include <srv_mav_behaviours/GiveUpYawControl.h>
 
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
@@ -63,7 +65,7 @@ class SafetyManager {
   // ROS variables
   ros::NodeHandle nh_;
 
-  ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_;
+  ros::Subscriber user_twist_subs_, position_ctrl_twist_subs_, yaw_ctrl_twist_subs_;
   ros::Subscriber height_subs_, ceiling_distance_subs_, ground_distance_subs_;
   ros::Subscriber point_cloud_subs_;
   ros::Subscriber imu_subs_;
@@ -85,8 +87,10 @@ class SafetyManager {
   dynamic_reconfigure::Server<srv_mav_behaviours::safety_managerConfig> reconfigure_server_;
 
   //Services
-  ros::ServiceServer request_control_srv_;
-  ros::ServiceServer give_up_control_srv_;
+  ros::ServiceServer request_position_control_srv_;
+  ros::ServiceServer give_up_position_control_srv_;
+  ros::ServiceServer request_yaw_control_srv_;
+  ros::ServiceServer give_up_yaw_control_srv_;
 
   // Params
   double robot_radius;
@@ -101,8 +105,11 @@ class SafetyManager {
   geometry_msgs::Twist user_desired_vel;
   bool desired_vel_received;
   geometry_msgs::Twist position_ctrl_vel;
+  geometry_msgs::Twist yaw_ctrl_vel;
   bool position_ctrl_vel_received;
+  bool yaw_ctrl_vel_received;
   bool position_control_granted;
+  bool yaw_control_granted;
   PointCloud point_cloud;
   bool point_cloud_received;
   sensor_msgs::Imu imu;
@@ -122,8 +129,10 @@ class SafetyManager {
   bool distance_ground_received;
 
   // Services
-  bool requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res);
-  bool giveUpControl(srv_mav_behaviours::GiveUpControl::Request &req, srv_mav_behaviours::GiveUpControl::Response &res);
+  bool requestPositionControl(srv_mav_behaviours::RequestPositionControl::Request &req, srv_mav_behaviours::RequestPositionControl::Response &res);
+  bool giveUpPositionControl(srv_mav_behaviours::GiveUpPositionControl::Request &req, srv_mav_behaviours::GiveUpPositionControl::Response &res);
+  bool requestYawControl(srv_mav_behaviours::RequestYawControl::Request &req, srv_mav_behaviours::RequestYawControl::Response &res);
+  bool giveUpYawControl(srv_mav_behaviours::GiveUpYawControl::Request &req, srv_mav_behaviours::GiveUpYawControl::Response &res);
 
   // Reconfigure
   void dynReconfig(srv_mav_behaviours::safety_managerConfig &config, uint32_t level);
@@ -131,6 +140,7 @@ class SafetyManager {
   // Callbacks
   void flightStatusClb(const std_msgs::UInt8::ConstPtr& flight_status_msg);
   void positionCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
+  void yawCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void userTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg);
   void pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg);
   void heightClb(const srv_mav_msgs::MAVVerticalState::ConstPtr& height_msg);

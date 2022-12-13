@@ -101,6 +101,7 @@ void SafetyManager::configure(){
 
   desired_vel_received = false;
   position_ctrl_vel_received = false;
+  yaw_ctrl_vel_received = false;
   point_cloud_received = false;
   height_received = false;
   //distance_ceiling_received = false;
@@ -111,8 +112,10 @@ void SafetyManager::configure(){
   distance_ceiling = 10.0; // Teraranger removed. No distance to the ceiling available!
 
   position_control_granted = false;
+  yaw_control_granted = false;
   //prevent all the autonomous behaviours
   nh_.setParam("position_control_granted", false);
+  nh_.setParam("yaw_control_granted", false);
 
   // Publishers
   twist_pub_ = nh_.advertise<geometry_msgs::Twist>("twist_out", 1);
@@ -132,6 +135,7 @@ void SafetyManager::configure(){
   // Subscribers
   user_twist_subs_ = nh_.subscribe("user_twist", 1, &SafetyManager::userTwistClb, this);
   position_ctrl_twist_subs_ = nh_.subscribe("position_ctrl_twist", 1, &SafetyManager::positionCtrlTwistClb, this);
+  yaw_ctrl_twist_subs_ = nh_.subscribe("yaw_ctrl_twist", 1, &SafetyManager::yawCtrlTwistClb, this);
   point_cloud_subs_ = nh_.subscribe<PointCloud>("point_cloud", 1, &SafetyManager::pointCloudClb, this);
   imu_subs_ = nh_.subscribe("imu", 1, &SafetyManager::imuClb, this);
   height_subs_ = nh_.subscribe("height", 1, &SafetyManager::heightClb, this);
@@ -140,8 +144,10 @@ void SafetyManager::configure(){
   flight_status_subs_ = nh_.subscribe("flight_status", 1, &SafetyManager::flightStatusClb, this);
 
   // Advertising Services
-  request_control_srv_ = nh_.advertiseService("request_control", &SafetyManager::requestControl, this);
-  give_up_control_srv_ = nh_.advertiseService("give_up_control", &SafetyManager::giveUpControl, this);
+  request_position_control_srv_ = nh_.advertiseService("request_position_control", &SafetyManager::requestPositionControl, this);
+  give_up_position_control_srv_ = nh_.advertiseService("give_up_position_control", &SafetyManager::giveUpPositionControl, this);
+  request_yaw_control_srv_ = nh_.advertiseService("request_yaw_control", &SafetyManager::requestYawControl, this);
+  give_up_yaw_control_srv_ = nh_.advertiseService("give_up_yaw_control", &SafetyManager::giveUpYawControl, this);
 
   //Service clients
 
@@ -193,7 +199,7 @@ void SafetyManager::checkParameters(){
 
 }
 
-bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &req, srv_mav_behaviours::RequestControl::Response &res){
+bool SafetyManager::requestPositionControl(srv_mav_behaviours::RequestPositionControl::Request &req, srv_mav_behaviours::RequestPositionControl::Response &res){
 
   if(flight_status == 3){ // the vehicle is flying
     if(!position_control_granted){
@@ -224,7 +230,7 @@ bool SafetyManager::requestControl(srv_mav_behaviours::RequestControl::Request &
 
 }
 
-bool SafetyManager::giveUpControl(srv_mav_behaviours::GiveUpControl::Request &req, srv_mav_behaviours::GiveUpControl::Response &res){
+bool SafetyManager::giveUpPositionControl(srv_mav_behaviours::GiveUpPositionControl::Request &req, srv_mav_behaviours::GiveUpPositionControl::Response &res){
 
   if(position_control_granted){
 
@@ -244,6 +250,57 @@ bool SafetyManager::giveUpControl(srv_mav_behaviours::GiveUpControl::Request &re
 
 }
 
+bool SafetyManager::requestYawControl(srv_mav_behaviours::RequestYawControl::Request &req, srv_mav_behaviours::RequestYawControl::Response &res){
+
+  if(flight_status == 3){ // the vehicle is flying
+    if(!yaw_control_granted){
+
+      yaw_control_granted = true;
+      res.allowed = true;
+      ROS_INFO("Allowing autonomous yaw control");
+
+      //allow autonomous yaw control
+      nh_.setParam("yaw_control_granted", true);
+
+    }else{
+
+      res.allowed = true;
+      ROS_DEBUG("Autonomous yaw control was already allowed");
+
+    }
+
+  }else{ // the vehicle is not flying
+
+    yaw_control_granted = false;
+    res.allowed = false;
+    ROS_WARN("Autonomous yaw control is not allowed on ground");
+
+  }
+
+  return true;
+
+}
+
+bool SafetyManager::giveUpYawControl(srv_mav_behaviours::GiveUpYawControl::Request &req, srv_mav_behaviours::GiveUpYawControl::Response &res){
+
+  if(yaw_control_granted){
+
+    yaw_control_granted = false;
+    res.ok = true;
+    ROS_INFO("No autonomous yaw control in course");
+
+    //stop the autonomous yaw control
+    nh_.setParam("yaw_control_granted", false);
+
+  }else{
+    res.ok = false;
+    ROS_WARN("Autonomous yaw control was not allowed");
+  }
+
+  return true;
+
+}
+
 void SafetyManager::flightStatusClb(const std_msgs::UInt8::ConstPtr& flight_status_msg){
 
   flight_status = flight_status_msg->data;
@@ -254,6 +311,13 @@ void SafetyManager::positionCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& t
 
   position_ctrl_vel = *twist_msg;
   position_ctrl_vel_received = true;
+
+}
+
+void SafetyManager::yawCtrlTwistClb(const geometry_msgs::Twist::ConstPtr& twist_msg){
+
+  yaw_ctrl_vel = *twist_msg;
+  yaw_ctrl_vel_received = true;
 
 }
 
@@ -413,11 +477,18 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
     position_ctrl_vel_received = false;
 
-  }else{
+  }
+  if(!yaw_control_granted){
+
+    yaw_ctrl_vel_received = false;
+
+  }
+  
+  if(position_control_granted || yaw_control_granted){
 
     if((desired_vx == 0.0) && (desired_vy == 0.0) && (flight_status == 3)){
 
-      if(position_ctrl_vel_received){
+      if(position_control_granted && position_ctrl_vel_received){
 
         desired_vx = position_ctrl_vel.linear.x;
         desired_vy = position_ctrl_vel.linear.y;
@@ -425,13 +496,21 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
       }
 
+      if(yaw_control_granted && yaw_ctrl_vel_received){
+
+        desired_vyaw = yaw_ctrl_vel.angular.z;
+
+      }
+
     }else{ // the autonomous behaviour can be stopped sending commands in vX or vY
 
       position_control_granted = false;
+      yaw_control_granted = false;
       ROS_WARN("Stopping autonomous behaviour");
 
       //stop all the autonomous behaviours
       nh_.setParam("position_control_granted", false);
+      nh_.setParam("yaw_control_granted", false);
 
     }
 
