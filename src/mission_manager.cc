@@ -93,10 +93,13 @@ void MissionManager::configure(){
   min_dist_left = min_dist_right = min_dist_up = min_dist_down = INFINITY;
 
   nh_.setParam("position_control_granted", false); //set to false the parameter safetyManager/position_control_granted (also done by the safetyManager)
+  nh_.setParam("yaw_control_granted", false); //set to false the parameter safetyManager/yaw_control_granted (also done by the safetyManager)
 
   position_controllers_enabled = false;
+  yaw_controller_enabled = false;
 
   WP_x = WP_y = WP_z = 0.0;
+  WP_yaw = 0.0;
 
   publish_mission_path = false;
   clearMissionPath();
@@ -147,6 +150,10 @@ void MissionManager::configure(){
   home_x = home_y = 0.0; // home_z set through the launchfile
   nh_.setParam("going_home", false);
 
+  // -------------------parameters for keeping orientation--------------------
+
+  nh_.setParam("keeping_orientation", false);
+
   // Publishers
   pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
   mission_path_pub_ = nh_.advertise<nav_msgs::Path>("mission_path", 1);
@@ -173,11 +180,15 @@ void MissionManager::configure(){
   set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
   save_point_srv_ = nh_.advertiseService("save_point", &MissionManager::savePoint, this);
   go_to_point_srv_ = nh_.advertiseService("go_to_point", &MissionManager::goToPoint, this);
+  keep_orientation_srv_ = nh_.advertiseService("keep_orientation", &MissionManager::keepOrientation, this);
 
   //Service clients
-  request_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestControl>("request_control");
-  give_up_control_client_ = nh_.serviceClient<srv_mav_behaviours::GiveUpControl>("give_up_control");
+  request_position_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestPositionControl>("request_position_control");
+  give_up_position_control_client_ = nh_.serviceClient<srv_mav_behaviours::GiveUpPositionControl>("give_up_position_control");
   enable_position_control_client_ = nh_.serviceClient<srv_mav_control::EnablePositionControl>("enable_position_control");
+  request_yaw_control_client_ = nh_.serviceClient<srv_mav_behaviours::RequestYawControl>("request_yaw_control");
+  give_up_yaw_control_client_ = nh_.serviceClient<srv_mav_behaviours::GiveUpYawControl>("give_up_yaw_control");
+  enable_yaw_control_client_ = nh_.serviceClient<srv_mav_control::EnableYawControl>("enable_yaw_control");
 
   // Timers
   timer_ = nh_.createTimer(ros::Duration(1.0 / frequency), &MissionManager::timerClb, this);
@@ -333,10 +344,10 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
   }
 
   // request control to the Safety Manager
-  srv_mav_behaviours::RequestControl request_control;
-  request_control_client_.call(request_control);
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
 
-  if(request_control.response.allowed){ // start the sweep
+  if(request_position_control.response.allowed){ // start the sweep
 
     //the sweep starts from the top left corner
 
@@ -395,8 +406,8 @@ bool MissionManager::stopSweep(std_srvs::Empty::Request &req, std_srvs::Empty::R
     ROS_WARN("Sweeping stopped");
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
 
   }else if(sweep_status == 2){ // the last sweeping is paused
 
@@ -424,8 +435,8 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
     ROS_WARN("Sweeping paused");
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
 
     // save WP to allow resuming the sweeping
     pausedMission_WP_x = WP_x;
@@ -451,10 +462,10 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
   if(sweep_status == 2){ // the last sweeping is paused
 
     // request control to the Safety Manager
-    srv_mav_behaviours::RequestControl request_control;
-    request_control_client_.call(request_control);
+    srv_mav_behaviours::RequestPositionControl request_position_control;
+    request_position_control_client_.call(request_position_control);
 
-    if(request_control.response.allowed){ // resume the sweep
+    if(request_position_control.response.allowed){ // resume the sweep
 
       //recompute the WP with the current orientation
 
@@ -583,10 +594,10 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
   }
 
   // request control to the Safety Manager
-  srv_mav_behaviours::RequestControl request_control;
-  request_control_client_.call(request_control);
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
 
-  if(request_control.response.allowed){ // start the vertical inspection
+  if(request_position_control.response.allowed){ // start the vertical inspection
 
     //the vertical inspection starts from the bottom left corner
 
@@ -637,8 +648,8 @@ bool MissionManager::stopVerticalInspection(std_srvs::Empty::Request &req, std_s
     ROS_WARN("Vertical inspection stopped");
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
 
   }else if(vinspection_status == 2){ // the last vertical inspection is paused
 
@@ -666,8 +677,8 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
     ROS_WARN("Vertical inspection paused");
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
 
     // save WP to allow resuming the vertical inspection
     pausedMission_WP_x = WP_x;
@@ -693,10 +704,10 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
   if(vinspection_status == 2){ // the last vertical inspection is paused
 
     // request control to the Safety Manager
-    srv_mav_behaviours::RequestControl request_control;
-    request_control_client_.call(request_control);
+    srv_mav_behaviours::RequestPositionControl request_position_control;
+    request_position_control_client_.call(request_position_control);
 
-    if(request_control.response.allowed){ // resume the vertical inspection
+    if(request_position_control.response.allowed){ // resume the vertical inspection
 
       //recompute the WP with the current orientation
 
@@ -786,10 +797,10 @@ bool MissionManager::hover(std_srvs::Empty::Request &req, std_srvs::Empty::Respo
 void MissionManager::performHovering(){
 
   // request control to the Safety Manager
-  srv_mav_behaviours::RequestControl request_control;
-  request_control_client_.call(request_control);
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
 
-  if(request_control.response.allowed){ // hover
+  if(request_position_control.response.allowed){ // hover
 
     nh_.setParam("hovering", true);
 
@@ -851,10 +862,10 @@ bool MissionManager::goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Resp
 void MissionManager::performGoHome(){
 
   // request control to the Safety Manager
-  srv_mav_behaviours::RequestControl request_control;
-  request_control_client_.call(request_control);
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
 
-  if(request_control.response.allowed){ // go home
+  if(request_position_control.response.allowed){ // go home
 
     nh_.setParam("going_home", true);
 
@@ -930,10 +941,10 @@ bool MissionManager::goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_
 void MissionManager::performGoToPoint(double point_x, double point_y, double point_z){
 
   // request control to the Safety Manager
-  srv_mav_behaviours::RequestControl request_control;
-  request_control_client_.call(request_control);
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
 
-  if(request_control.response.allowed){ // go to point
+  if(request_position_control.response.allowed){ // go to point
 
     nh_.setParam("going_to_point", true);
 
@@ -956,6 +967,33 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
 
     newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
+
+  }
+
+}
+
+bool MissionManager::keepOrientation(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(!odom_received) return false;
+
+  performKeepOrientation();
+  return true;
+}
+
+void MissionManager::performKeepOrientation(){
+
+  // request control to the Safety Manager
+  srv_mav_behaviours::RequestYawControl request_yaw_control;
+  request_yaw_control_client_.call(request_yaw_control);
+
+  if(request_yaw_control.response.allowed){ // keep orientation
+
+    nh_.setParam("keeping_orientation", true);
+
+    ROS_WARN("Keeping orientation of %2.2f degrees", current_yaw*180.0/M_PI);
+
+    //update the WP to the current orientation
+    WP_yaw = current_yaw;
 
   }
 
@@ -986,13 +1024,16 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   bool position_control_granted;
   nh_.getParam("position_control_granted", position_control_granted);
 
+  bool yaw_control_granted;
+  nh_.getParam("yaw_control_granted", yaw_control_granted);
+
   if(position_control_granted && (min_dist_down < min_height)){
 
     ROS_WARN("Obstacle below the MAV");
 
     // give up control to the Safety Manager
-    srv_mav_behaviours::GiveUpControl give_up_control;
-    give_up_control_client_.call(give_up_control);
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
     nh_.getParam("position_control_granted", position_control_granted);
 
   }
@@ -1044,6 +1085,10 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   }
 
+  if(!yaw_control_granted){//stop the yaw control
+    nh_.setParam("keeping_orientation", false);
+  }
+
   if(performing_sweep){
 
     performSweep(); //it provides the WP
@@ -1056,10 +1101,12 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   }
 
+  geometry_msgs::PosePtr pose_WP(new geometry_msgs::Pose);
+  bool publish_WP = false;
+
   if(position_control_granted){ // perform some mission/behaviour
 
     // publish the current WP
-    geometry_msgs::PosePtr pose_WP(new geometry_msgs::Pose);
     pose_WP->position.x = WP_x;
     pose_WP->position.y = WP_y;
     pose_WP->position.z = WP_z;
@@ -1153,7 +1200,8 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       }
     }
 
-    pose_pub_.publish(pose_WP);
+    //pose_pub_.publish(pose_WP);
+    publish_WP = true;
 
     if(!position_controllers_enabled){
 
@@ -1182,6 +1230,48 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       }
     }
 
+  }
+
+  if(yaw_control_granted){
+
+    // publish the WP yaw
+    tf::Quaternion q;
+    q.setRPY(0,0,WP_yaw);
+    tf::quaternionTFToMsg(q, pose_WP->orientation);
+
+    publish_WP = true;
+
+    if(!yaw_controller_enabled){
+
+      //enable yaw control
+      srv_mav_control::EnableYawControl enable_yaw_ctrl;
+      enable_yaw_ctrl.request.enable = 1;
+      enable_yaw_control_client_.call(enable_yaw_ctrl);
+
+      if(enable_yaw_ctrl.response.enabled){
+        yaw_controller_enabled = true;
+      }
+
+    }
+
+  }else{ // do not perform yaw control
+
+    if(yaw_controller_enabled){
+
+      //disable yaw_control
+      srv_mav_control::EnableYawControl enable_yaw_ctrl;
+      enable_yaw_ctrl.request.enable = 0;
+      enable_yaw_control_client_.call(enable_yaw_ctrl);
+
+      if(!enable_yaw_ctrl.response.enabled){
+        yaw_controller_enabled = false;
+      }
+    }
+
+  }
+
+  if(publish_WP){
+    pose_pub_.publish(pose_WP);
   }
 
   if(publish_mission_path){
@@ -1323,8 +1413,8 @@ void MissionManager::performSweep(){
   if(!performing_sweep){ // the sweeping has finished now
 
     // give up control to the Safety Manager
-    // srv_mav_behaviours::GiveUpControl give_up_control;
-    // give_up_control_client_.call(give_up_control);
+    // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    // give_up_position_control_client_.call(give_up_position_control);
 
     // start a hovering in the last WP instead of giving up control
     nh_.setParam("hovering", true);
@@ -1473,8 +1563,8 @@ void MissionManager::performVerticalInspection(){
   if(!performing_vinspection){ // the vertical inspection has finished now
 
     // give up control to the Safety Manager
-    // srv_mav_behaviours::GiveUpControl give_up_control;
-    // give_up_control_client_.call(give_up_control);
+    // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    // give_up_position_control_client_.call(give_up_position_control);
 
     // start a hovering in the last WP instead of giving up control
     nh_.setParam("hovering", true);

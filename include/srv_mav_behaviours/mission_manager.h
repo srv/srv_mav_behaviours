@@ -33,9 +33,12 @@
 #include <std_srvs/Empty.h>
 #include <srv_mav_behaviours/StartSweep.h>
 #include <srv_mav_behaviours/StartVerticalInspection.h>
-#include <srv_mav_behaviours/RequestControl.h>
-#include <srv_mav_behaviours/GiveUpControl.h>
+#include <srv_mav_behaviours/RequestPositionControl.h>
+#include <srv_mav_behaviours/GiveUpPositionControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
+#include <srv_mav_behaviours/RequestYawControl.h>
+#include <srv_mav_behaviours/GiveUpYawControl.h>
+#include <srv_mav_control/EnableYawControl.h>
 #include <srv_mav_behaviours/GoToPoint.h>
 #include <srv_mav_behaviours/SavePoint.h>
 
@@ -79,9 +82,9 @@ class MissionManager {
 
   double min_dist_left, min_dist_right, min_dist_up, min_dist_down;
 
-  bool position_controllers_enabled;
+  bool position_controllers_enabled, yaw_controller_enabled;
 
-  double WP_x, WP_y, WP_z;
+  double WP_x, WP_y, WP_z, WP_yaw;
 
   double pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z;
   double pausedMission_yaw;
@@ -118,10 +121,12 @@ class MissionManager {
   std::vector<std::string> saved_positions_description;
 
   // Services
-  ros::ServiceClient request_control_client_, give_up_control_client_, enable_position_control_client_;
+  ros::ServiceClient request_position_control_client_, give_up_position_control_client_, enable_position_control_client_;
+  ros::ServiceClient request_yaw_control_client_, give_up_yaw_control_client_, enable_yaw_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
   ros::ServiceServer start_vertical_inspection_srv_, stop_vertical_inspection_srv_, pause_vertical_inspection_srv_, resume_vertical_inspection_srv_;
   ros::ServiceServer hover_srv_;
+  ros::ServiceServer keep_orientation_srv_;
   ros::ServiceServer go_home_srv_, set_home_srv_;
   ros::ServiceServer save_point_srv_, go_to_point_srv_;
 
@@ -142,6 +147,7 @@ class MissionManager {
   bool setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_mav_behaviours::SavePoint::Response &res);
   bool goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res);
+  bool keepOrientation(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
   // Callbacks
   void odomClb(const nav_msgs::Odometry::ConstPtr& odom_msg);
@@ -158,6 +164,7 @@ class MissionManager {
   void performHovering();
   void performGoHome();
   void performGoToPoint(double point_x, double point_y, double point_z);
+  void performKeepOrientation();
 
   void publishMissionPath();
   void clearMissionPath();
