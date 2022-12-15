@@ -484,36 +484,40 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   }
   
-  if(position_control_granted || yaw_control_granted){
+  if(position_control_granted && position_ctrl_vel_received){
 
     if((desired_vx == 0.0) && (desired_vy == 0.0) && (flight_status == 3)){
 
-      if(position_control_granted && position_ctrl_vel_received){
-
-        desired_vx = position_ctrl_vel.linear.x;
-        desired_vy = position_ctrl_vel.linear.y;
-        desired_vz = position_ctrl_vel.linear.z;
-
-      }
-
-      if(yaw_control_granted && yaw_ctrl_vel_received){
-
-        desired_vyaw = yaw_ctrl_vel.angular.z;
-
-      }
+      desired_vx = position_ctrl_vel.linear.x;
+      desired_vy = position_ctrl_vel.linear.y;
+      desired_vz = position_ctrl_vel.linear.z;
 
     }else{ // the autonomous behaviour can be stopped sending commands in vX or vY
 
       position_control_granted = false;
-      yaw_control_granted = false;
       ROS_WARN("Stopping autonomous behaviour");
 
       //stop all the autonomous behaviours
       nh_.setParam("position_control_granted", false);
+
+    }
+  }
+
+  if(yaw_control_granted && yaw_ctrl_vel_received){
+
+    if((desired_vyaw == 0.0) && (flight_status == 3)){
+
+      desired_vyaw = yaw_ctrl_vel.angular.z;
+
+    }else{ // the autonomous yaw control can be stopped sending commands in vYaw
+
+      yaw_control_granted = false;
+      ROS_WARN("Stopping autonomous yaw control");
+
+      //stop the autonomous yaw control
       nh_.setParam("yaw_control_granted", false);
 
     }
-
   }
 
   // attenuate the desired command in XY with the proximity of obstacles
