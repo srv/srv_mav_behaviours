@@ -1110,6 +1110,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     pose_WP->position.x = WP_x;
     pose_WP->position.y = WP_y;
     pose_WP->position.z = WP_z;
+    pose_WP->orientation.w = 1.0;
 
     if(follow_trajectory){
 
