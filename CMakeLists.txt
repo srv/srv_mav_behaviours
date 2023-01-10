@@ -64,6 +64,7 @@ add_service_files(
   GiveUpYawControl.srv
   StartSweep.srv
   StartVerticalInspection.srv
+  StartCircularInspection.srv
   GoToPoint.srv
   SavePoint.srv
 )

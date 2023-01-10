@@ -33,6 +33,7 @@
 #include <std_srvs/Empty.h>
 #include <srv_mav_behaviours/StartSweep.h>
 #include <srv_mav_behaviours/StartVerticalInspection.h>
+#include <srv_mav_behaviours/StartCircularInspection.h>
 #include <srv_mav_behaviours/RequestPositionControl.h>
 #include <srv_mav_behaviours/GiveUpPositionControl.h>
 #include <srv_mav_control/EnablePositionControl.h>
@@ -86,8 +87,8 @@ class MissionManager {
 
   double WP_x, WP_y, WP_z, WP_yaw;
 
-  double pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z;
-  double pausedMission_yaw;
+  double pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z, pausedMission_WP_yaw;
+  double pausedMission_initial_yaw;
 
   double sweep_y_size, sweep_z_size, sweep_y_increment, sweep_z_increment;
   bool sweep_wall_to_wall;
@@ -109,6 +110,14 @@ class MissionManager {
   int vinspection_status;
   bool vinspection_reaching_end;
 
+  double cinspection_radius, cinspection_arc_increment;
+  bool performing_cinspection;
+  double initial_yaw_cinspection;
+  double center_x_cinspection;
+  double center_y_cinspection;
+  int cinspection_state;
+  int cinspection_status;
+
   bool publish_mission_path;
   nav_msgs::PathPtr mission_path;
   nav_msgs::PathPtr WP_path;
@@ -125,6 +134,7 @@ class MissionManager {
   ros::ServiceClient request_yaw_control_client_, give_up_yaw_control_client_, enable_yaw_control_client_;
   ros::ServiceServer start_sweep_srv_, stop_sweep_srv_, pause_sweep_srv_, resume_sweep_srv_;
   ros::ServiceServer start_vertical_inspection_srv_, stop_vertical_inspection_srv_, pause_vertical_inspection_srv_, resume_vertical_inspection_srv_;
+  ros::ServiceServer start_circular_inspection_srv_, stop_circular_inspection_srv_, pause_circular_inspection_srv_, resume_circular_inspection_srv_;
   ros::ServiceServer hover_srv_;
   ros::ServiceServer keep_orientation_srv_;
   ros::ServiceServer go_home_srv_, set_home_srv_;
@@ -142,6 +152,10 @@ class MissionManager {
   bool stopVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool pauseVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool resumeVerticalInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool startCircularInspection(srv_mav_behaviours::StartCircularInspection::Request &req, srv_mav_behaviours::StartCircularInspection::Response &res);
+  bool stopCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool pauseCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  bool resumeCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool goHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool setHome(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
@@ -161,6 +175,7 @@ class MissionManager {
   void checkParameters();
   void performSweep();
   void performVerticalInspection();
+  void performCircularInspection();
   void performHovering();
   void performGoHome();
   void performGoToPoint(double point_x, double point_y, double point_z);
@@ -172,6 +187,8 @@ class MissionManager {
   void recomputeSweepingPath();
   void createVerticalInspectionPath();
   void recomputeVerticalInspectionPath();
+  void createCircularInspectionPath();
+  void recomputeCircularInspectionPath();
 
   void publishWPPath();
   void newWPPath();

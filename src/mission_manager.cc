@@ -141,6 +141,23 @@ void MissionManager::configure(){
 
   vinspection_y_size = vinspection_z_size = vinspection_z_increment = 0.0;
 
+    // --------------parameters for circular inspection-----------------
+
+  performing_cinspection = false;
+
+  initial_yaw_cinspection = 0.0;
+  cinspection_state = 0;  //0--> starting (first X degrees)
+                          //1--> rest of the circumference
+                          //2--> finishing
+  center_x_cinspection = center_y_cinspection = 0.0;
+
+  cinspection_status = 0; //0-->No circular inspection in course
+                          //1-->Circular inspection
+                          //2-->Paused
+  nh_.setParam("cinspection_status", cinspection_status);
+
+  cinspection_radius = cinspection_arc_increment = 0.0;
+
   // -------------------parameters for hovering--------------------
 
   nh_.setParam("hovering", false);
@@ -175,6 +192,10 @@ void MissionManager::configure(){
   stop_vertical_inspection_srv_ = nh_.advertiseService("stop_vertical_inspection", &MissionManager::stopVerticalInspection, this);
   pause_vertical_inspection_srv_ = nh_.advertiseService("pause_vertical_inspection", &MissionManager::pauseVerticalInspection, this);
   resume_vertical_inspection_srv_ = nh_.advertiseService("resume_vertical_inspection", &MissionManager::resumeVerticalInspection, this);
+  start_circular_inspection_srv_ = nh_.advertiseService("start_circular_inspection", &MissionManager::startCircularInspection, this);
+  stop_circular_inspection_srv_ = nh_.advertiseService("stop_circular_inspection", &MissionManager::stopCircularInspection, this);
+  pause_circular_inspection_srv_ = nh_.advertiseService("pause_circular_inspection", &MissionManager::pauseCircularInspection, this);
+  resume_circular_inspection_srv_ = nh_.advertiseService("resume_circular_inspection", &MissionManager::resumeCircularInspection, this);
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
   go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
   set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
@@ -383,6 +404,9 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
+    performing_cinspection = false;
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
 
     if(!sweep_wall_to_wall){
       createSweepingPath();
@@ -443,7 +467,7 @@ bool MissionManager::pauseSweep(std_srvs::Empty::Request &req, std_srvs::Empty::
     pausedMission_WP_y = WP_y;
     pausedMission_WP_z = WP_z;
 
-    pausedMission_yaw = initial_yaw_sweep;
+    pausedMission_initial_yaw = initial_yaw_sweep;
 
     removeLastWPPath();
     addWP2WPPath(current_x, current_y, current_z);
@@ -525,6 +549,9 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       performing_vinspection = false;
       vinspection_status = 0;
       nh_.setParam("vinspection_status", vinspection_status);
+      performing_cinspection = false;
+      cinspection_status = 0;
+      nh_.setParam("cinspection_status", cinspection_status);
 
       if(!sweep_wall_to_wall){
         recomputeSweepingPath();
@@ -563,7 +590,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     return true;
   }
 
-  //load the sweeping parameters
+  //load the vertical inspection parameters
   vinspection_y_size = req.width;
   vinspection_z_size = req.height;
   vinspection_z_increment = req.vertical_step;
@@ -625,6 +652,9 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     performing_sweep = false;
     sweep_status = 0;
     nh_.setParam("sweep_status", sweep_status);
+    performing_cinspection = false;
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
 
     if(!vinspection_to_ceiling){
       createVerticalInspectionPath();
@@ -653,7 +683,7 @@ bool MissionManager::stopVerticalInspection(std_srvs::Empty::Request &req, std_s
 
   }else if(vinspection_status == 2){ // the last vertical inspection is paused
 
-    // performing_sweep is already false
+    // performing_vinspection is already false
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
     ROS_WARN("Vertical inspection stopped");
@@ -685,7 +715,7 @@ bool MissionManager::pauseVerticalInspection(std_srvs::Empty::Request &req, std_
     pausedMission_WP_y = WP_y;
     pausedMission_WP_z = WP_z;
 
-    pausedMission_yaw = initial_yaw_vinspection;
+    pausedMission_initial_yaw = initial_yaw_vinspection;
 
     removeLastWPPath();
     addWP2WPPath(current_x, current_y, current_z);
@@ -767,6 +797,9 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       performing_sweep = false;
       sweep_status = 0;
       nh_.setParam("sweep_status", sweep_status);
+      performing_cinspection = false;
+      cinspection_status = 0;
+      nh_.setParam("cinspection_status", cinspection_status);
 
       if(!vinspection_to_ceiling){
         recomputeVerticalInspectionPath();
@@ -780,6 +813,255 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
   }else{
 
     ROS_WARN("No vertical inspection in pause");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularInspection::Request &req, srv_mav_behaviours::StartCircularInspection::Response &res){
+
+  if(!odom_received) return false;
+
+  if(performing_cinspection || (cinspection_status == 2)){
+    ROS_WARN("Circular inspection already in process!!");
+    return false;
+  }
+
+  if(min_dist_down < min_height){
+    ROS_WARN("Obstacle below the MAV"); 
+    return true;
+  }
+
+  //load the circular inspection parameters
+  cinspection_radius = req.radius;
+  cinspection_arc_increment = req.arc_step;
+
+  if(cinspection_radius <= 0.0 ){
+
+    ROS_WARN("Unspecified circular inspection dimensions");
+    return false;
+
+  }
+
+  if (cinspection_radius < 2.0){
+    ROS_WARN("Circular insp. radius set to 2 m");
+    cinspection_radius = 2.0;
+  }
+
+  if((cinspection_arc_increment > cinspection_radius) || (cinspection_arc_increment <= 0.0)){
+
+    ROS_WARN("Circular insp. arc increment set to 1 m");
+    cinspection_arc_increment = 1.0;
+  }
+
+  // request position control to the Safety Manager
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
+
+  if(request_position_control.response.allowed){ // request yaw control to the Safety Manager
+
+    srv_mav_behaviours::RequestYawControl request_yaw_control;
+    request_yaw_control_client_.call(request_yaw_control);
+
+    if(request_yaw_control.response.allowed){ // start the circular inspection
+
+      //the circular inspection starts and finishes at the same location
+
+      //compute the first displacement
+      double theta = cinspection_arc_increment/cinspection_radius; // L = theta * radius ; then theta = L/r
+      double alpha = (M_PI-theta)/2.0;
+      double beta = M_PI_2 - alpha;
+      double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
+
+      tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+
+     //rotate the increment to the world frame using the estimated yaw
+      tf::Matrix3x3 m_rot;
+      m_rot.setRPY(0, 0, current_yaw);
+      tf::Vector3 world_incr = m_rot * robot_incr;
+
+      //compute the first WP
+      WP_x = current_x + world_incr.getX();
+      WP_y = current_y + world_incr.getY();
+      WP_z = current_z;
+      WP_yaw = current_yaw; // we will look always to the center of the circumference 
+      //WP_yaw = current_yaw + theta; // we want to get the orientation of the first WP
+
+      tf::Vector3 center_incr_robot(cinspection_radius, 0.0, 0.0); //center of the circumference
+      tf::Vector3 center_incr_world = m_rot * center_incr_robot;
+      center_x_cinspection = current_x + center_incr_world.getX();
+      center_y_cinspection = current_y + center_incr_world.getY();
+      initial_yaw_cinspection = current_yaw; // used to detect the end of the circular inspection
+
+      performing_cinspection = true;  
+      cinspection_status = 1;
+      nh_.setParam("cinspection_status", cinspection_status);
+
+      cinspection_state = 0; // going up
+      ROS_WARN("Starting new circular inspection");
+
+      //stop all the other behaviours
+      nh_.setParam("hovering", false);
+      nh_.setParam("going_home", false);
+      nh_.setParam("going_to_point", false);
+      performing_sweep = false;
+      sweep_status = 0;
+      nh_.setParam("sweep_status", sweep_status);
+      performing_vinspection = false;
+      vinspection_status = 0;
+      nh_.setParam("vinspection_status", vinspection_status);
+
+      createCircularInspectionPath();
+      publish_mission_path = true;
+
+      newWPPath();
+      addWP2WPPath(WP_x, WP_y, WP_z);
+    }
+  }
+
+  return true;
+}
+
+bool MissionManager::stopCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_cinspection){
+
+    performing_cinspection = false;
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
+    ROS_WARN("Circular inspection stopped");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
+
+  }else if(cinspection_status == 2){ // the last circular inspection is paused
+
+    // performing_cinspection is already false
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
+    ROS_WARN("Circular inspection stopped");
+
+  }else{
+
+    ROS_WARN("No vertical inspection in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::pauseCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_cinspection){
+
+    performing_cinspection = false;
+    cinspection_status = 2;
+    nh_.setParam("cinspection_status", cinspection_status);
+    ROS_WARN("Circular inspection paused");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
+
+    // save WP to allow resuming the circular inspection
+    pausedMission_WP_x = WP_x;
+    pausedMission_WP_y = WP_y;
+    pausedMission_WP_z = WP_z;
+    pausedMission_WP_yaw = WP_yaw;
+
+    pausedMission_initial_yaw = initial_yaw_cinspection; // unnecessary for this behaviour
+
+    removeLastWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+
+  }else{
+
+    ROS_WARN("No circular inspection in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(cinspection_status == 2){ // the last circular inspection is paused
+
+    // request position control to the Safety Manager
+    srv_mav_behaviours::RequestPositionControl request_position_control;
+    request_position_control_client_.call(request_position_control);
+
+    if(request_position_control.response.allowed){ // request yaw control to the Safety Manager
+
+      srv_mav_behaviours::RequestYawControl request_yaw_control;
+      request_yaw_control_client_.call(request_yaw_control);
+
+      if(request_yaw_control.response.allowed){ // resume the circular inspection
+
+        //update the WP considering the current location and the center of the inspection for yaw
+        double errorX = center_x_cinspection-current_x;
+        double errorY = center_y_cinspection-current_y;
+        cinspection_radius = sqrt(errorX*errorX + errorY*errorY); // distance to the center of the circumference
+        if (cinspection_radius < 2.0){
+          ROS_WARN("Circular insp. radius set to 2 m");
+          cinspection_radius = 2.0;
+        }
+
+        //compute the displacement
+        double theta = cinspection_arc_increment/cinspection_radius; // L = theta * radius ; then theta = L/r
+        double alpha = (M_PI-theta)/2.0;
+        double beta = M_PI_2 - alpha;
+        double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
+
+        tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+
+        //rotate the increment to the world frame using the estimated yaw
+        tf::Matrix3x3 m_rot;
+        m_rot.setRPY(0, 0, current_yaw);
+        tf::Vector3 world_incr = m_rot * robot_incr;
+
+        //compute the next WP
+        WP_x = current_x + world_incr.getX();
+        WP_y = current_y + world_incr.getY();
+        WP_z = current_z;
+
+        //compute WP_yaw
+        double yaw_incr = acos((cos(current_yaw)*errorX + sin(current_yaw)*errorY)/ cinspection_radius);
+        double delta_aux = cos(current_yaw)*errorY - sin(current_yaw)*errorX;
+        if (delta_aux < 0.0) yaw_incr = -yaw_incr;
+        WP_yaw = current_yaw + yaw_incr;
+        
+        performing_cinspection = true;  
+        cinspection_status = 1;
+        nh_.setParam("cinspection_status", cinspection_status);
+      
+        ROS_WARN("Resuming circular inspection");
+
+        //stop all the other behaviours
+        nh_.setParam("hovering", false);
+        nh_.setParam("going_home", false);
+        nh_.setParam("going_to_point", false);
+        performing_sweep = false;
+        sweep_status = 0;
+        nh_.setParam("sweep_status", sweep_status);
+        performing_vinspection = false;
+        vinspection_status = 0;
+        nh_.setParam("vinspection_status", vinspection_status);
+
+        recomputeCircularInspectionPath();
+
+        addWP2WPPath(current_x, current_y, current_z);
+        addWP2WPPath(WP_x, WP_y, WP_z);
+
+      }
+
+    }
+
+  }else{
+
+    ROS_WARN("No circular inspection in pause");
 
   }
 
@@ -820,7 +1102,7 @@ void MissionManager::performHovering(){
       pausedMission_WP_y = WP_y;
       pausedMission_WP_z = WP_z;
 
-      pausedMission_yaw = initial_yaw_sweep;
+      pausedMission_initial_yaw = initial_yaw_sweep;
 
     }
 
@@ -836,7 +1118,24 @@ void MissionManager::performHovering(){
       pausedMission_WP_y = WP_y;
       pausedMission_WP_z = WP_z;
 
-      pausedMission_yaw = initial_yaw_vinspection;
+      pausedMission_initial_yaw = initial_yaw_vinspection;
+
+    }
+
+    if(performing_cinspection){//pause the circular inspection in course (if any)
+
+      cinspection_status = 2;
+      nh_.setParam("cinspection_status", cinspection_status);
+      ROS_WARN("Circular inspection paused");
+      performing_cinspection = false;
+
+      // save WP to allow resuming the circular inspection
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
+      pausedMission_WP_yaw = WP_yaw;
+
+      pausedMission_initial_yaw = initial_yaw_cinspection; // unnecessary for this behaviour
 
     }
 
@@ -878,6 +1177,9 @@ void MissionManager::performGoHome(){
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
+    performing_cinspection = false;
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
 
     ROS_WARN("Going home: %2.2f, %2.2f, %2.2f", home_x, home_y, home_z);
 
@@ -957,6 +1259,9 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
     performing_vinspection = false;
     vinspection_status = 0;
     nh_.setParam("vinspection_status", vinspection_status);
+    performing_cinspection = false;
+    cinspection_status = 0;
+    nh_.setParam("cinspection_status", cinspection_status);
 
     ROS_WARN("Going to point: %2.2f, %2.2f, %2.2f", point_x, point_y, point_z);
 
@@ -1052,7 +1357,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       pausedMission_WP_y = WP_y;
       pausedMission_WP_z = WP_z;
 
-      pausedMission_yaw = initial_yaw_sweep;
+      pausedMission_initial_yaw = initial_yaw_sweep;
 
       removeLastWPPath();
       addWP2WPPath(current_x, current_y, current_z);
@@ -1071,7 +1376,27 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       pausedMission_WP_y = WP_y;
       pausedMission_WP_z = WP_z;
 
-      pausedMission_yaw = initial_yaw_vinspection;
+      pausedMission_initial_yaw = initial_yaw_vinspection;
+
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
+
+    }
+
+    if(performing_cinspection){//pause the circular inspection in course (if any)
+
+      cinspection_status = 2;
+      nh_.setParam("cinspection_status", cinspection_status);
+      ROS_WARN("Circular inspection paused");
+      performing_cinspection = false;
+
+      // save WP to allow resuming the circular inspection
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
+      pausedMission_WP_yaw = WP_yaw;
+
+      pausedMission_initial_yaw = initial_yaw_cinspection; //unnecessary for this behaviour
 
       removeLastWPPath();
       addWP2WPPath(current_x, current_y, current_z);
@@ -1086,6 +1411,28 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   }
 
   if(!yaw_control_granted){//stop the yaw control
+
+    if(performing_cinspection){//pause the circular inspection in course (if any)
+
+      cinspection_status = 2;
+      nh_.setParam("cinspection_status", cinspection_status);
+      ROS_WARN("Circular inspection paused");
+      performing_cinspection = false;
+
+      // save WP to allow resuming the circular inspection
+      pausedMission_WP_x = WP_x;
+      pausedMission_WP_y = WP_y;
+      pausedMission_WP_z = WP_z;
+      pausedMission_WP_yaw = WP_yaw;
+
+      pausedMission_initial_yaw = initial_yaw_cinspection; //unnecessary for this behaviour
+
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
+
+    }
+
+    //stop the orientation keeping
     nh_.setParam("keeping_orientation", false);
   }
 
@@ -1098,6 +1445,12 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   if(performing_vinspection){
 
     performVerticalInspection(); //it provides the WP
+
+  }
+
+  if(performing_cinspection){
+
+    performCircularInspection(); //it provides the WP
 
   }
 
@@ -1276,7 +1629,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   }
 
   if(publish_mission_path){
-    if ((sweep_status > 0)||(vinspection_status > 0)){//sweeping or vinspection in progress or paused
+    if ((sweep_status > 0)||(vinspection_status > 0)||(cinspection_status > 0)){//sweeping/vinspection/cinspection in progress or paused
       publishMissionPath();
     }else{
       publish_mission_path = false;
@@ -1435,7 +1788,7 @@ void MissionManager::performVerticalInspection(){
 
   if(errorWP < WP_tolerance){ // the WP has been reached
 
-    // update the sweep_state if necessary
+    // update the vinspection_state if necessary
 
     if((vinspection_state == 0) || (vinspection_state == 2)){ // going up or down
 
@@ -1575,6 +1928,80 @@ void MissionManager::performVerticalInspection(){
 
 }
 
+void MissionManager::performCircularInspection(){
+
+
+  //always update the WP_yaw to look at the center of the circumference
+  double center_errorX = center_x_cinspection-current_x;
+  double center_errorY = center_y_cinspection-current_y;
+  double yaw_incr = acos((cos(current_yaw)*center_errorX + sin(current_yaw)*center_errorY)/ cinspection_radius);
+  double delta_aux = cos(current_yaw)*center_errorY - sin(current_yaw)*center_errorX;
+  if (delta_aux < 0.0) yaw_incr = -yaw_incr;
+  WP_yaw = current_yaw + yaw_incr;
+
+  // update the cinspection_state if necessary
+  double angular_diff = acos(cos(current_yaw)*cos(initial_yaw_cinspection) + sin(current_yaw)*sin(initial_yaw_cinspection));
+
+  if((cinspection_state == 0) && (angular_diff > M_PI_2)) cinspection_state = 1; // first 90 deg. completed
+  else if((cinspection_state == 1) && (angular_diff < 0.02)) cinspection_state = 2; // circumference completed
+  
+  double errorX = WP_x-current_x;
+  double errorY = WP_y-current_y;
+  double errorZ = WP_z-current_z;
+
+  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+
+  if(errorWP < WP_tolerance){ // the WP has been reached
+
+    if( cinspection_state < 2){
+
+      //compute the next WP coordinates
+      //compute the displacement
+      double theta = cinspection_arc_increment/cinspection_radius; // L = theta * radius ; then theta = L/r
+      double alpha = (M_PI-theta)/2.0;
+      double beta = M_PI_2 - alpha;
+      double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
+
+      tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+
+      //rotate the increment to the world frame using the estimated yaw
+      tf::Matrix3x3 m_rot;
+      m_rot.setRPY(0, 0, current_yaw);
+      tf::Vector3 world_incr = m_rot * robot_incr;
+
+      //compute the next WP
+      WP_x = current_x + world_incr.getX();
+      WP_y = current_y + world_incr.getY();
+
+    }else{
+
+      ROS_WARN("Circular inspection finished");
+
+      performing_cinspection = false;
+      cinspection_status = 0;
+      nh_.setParam("cinspection_status", cinspection_status);
+
+    }
+
+    if(performing_cinspection){ // a new WP has been defined and the CI has not finished
+      addWP2WPPath(WP_x, WP_y, WP_z);
+    }
+  }
+
+  if(!performing_cinspection){ // the circular inspection has finished now
+
+    // give up control to the Safety Manager
+    // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    // give_up_position_control_client_.call(give_up_position_control);
+
+    // start a hovering in the last WP instead of giving up control
+    nh_.setParam("hovering", true);
+    ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+
+  }
+
+}
+
 void MissionManager::publishMissionPath(){
 
   mission_path_pub_.publish(mission_path);
@@ -1659,7 +2086,7 @@ void MissionManager::recomputeSweepingPath(){
   double first_z = mission_path->poses.at(0).pose.position.z;
   tf::Vector3 first_point(first_x, first_y, first_z);
   tf::Matrix3x3 mat;
-  mat.setRPY(0, 0, initial_yaw_sweep-pausedMission_yaw); //update in SW orientation
+  mat.setRPY(0, 0, initial_yaw_sweep-pausedMission_initial_yaw); //update in SW orientation
   tf::Vector3 pausedMission_WP(pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z);
   pausedMission_WP = pausedMission_WP - first_point;
   tf::Vector3 pausedMission_WP_rot = mat * pausedMission_WP;
@@ -1733,7 +2160,7 @@ void MissionManager::recomputeVerticalInspectionPath(){
   double first_z = mission_path->poses.at(0).pose.position.z;
   tf::Vector3 first_point(first_x, first_y, first_z);
   tf::Matrix3x3 mat;
-  mat.setRPY(0, 0, initial_yaw_vinspection-pausedMission_yaw); //update in VI orientation
+  mat.setRPY(0, 0, initial_yaw_vinspection-pausedMission_initial_yaw); //update in VI orientation
   tf::Vector3 pausedMission_WP(pausedMission_WP_x, pausedMission_WP_y, pausedMission_WP_z);
   pausedMission_WP = pausedMission_WP - first_point;
   tf::Vector3 pausedMission_WP_rot = mat * pausedMission_WP;
@@ -1754,6 +2181,40 @@ void MissionManager::recomputeVerticalInspectionPath(){
     mission_path->poses.at(i).pose.position.y = point.getY();
     mission_path->poses.at(i).pose.position.z = point.getZ();
   }
+
+}
+
+void MissionManager::createCircularInspectionPath(){
+
+  clearMissionPath();
+
+  mission_path->header.frame_id = world_frame;
+  mission_path->header.stamp = ros::Time::now();
+
+  geometry_msgs::PoseStamped point;
+
+  point.header.frame_id = world_frame;
+  point.header.stamp = mission_path->header.stamp;
+  point.pose.orientation.w = 1.0;
+
+  int num_points = 200;
+  double theta_incr = 2*M_PI/num_points;
+  double theta = 0.0;
+
+  for(int i = 0; i < num_points; i++){
+    point.pose.position.x = center_x_cinspection + cinspection_radius*cos(theta);
+    point.pose.position.y = center_y_cinspection + cinspection_radius*sin(theta);
+    point.pose.position.z = current_z;
+    mission_path->poses.push_back(point);
+  }
+
+}
+
+void MissionManager::recomputeCircularInspectionPath(){
+
+  // we can draw the circumference from scratch
+  // the new radius will be used (if updated)
+  createCircularInspectionPath();
 
 }
 
