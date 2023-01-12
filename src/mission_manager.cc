@@ -2205,6 +2205,7 @@ void MissionManager::createCircularInspectionPath(){
     point.pose.position.x = center_x_cinspection + cinspection_radius*cos(theta);
     point.pose.position.y = center_y_cinspection + cinspection_radius*sin(theta);
     point.pose.position.z = current_z;
+    theta += theta_incr;
     mission_path->poses.push_back(point);
   }
 
