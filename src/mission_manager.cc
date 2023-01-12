@@ -874,7 +874,7 @@ bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularIn
       double beta = M_PI_2 - alpha;
       double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
 
-      tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+      tf::Vector3 robot_incr(d*sin(beta), -d*cos(beta), 0.0); //move following a circumference
 
      //rotate the increment to the world frame using the estimated yaw
       tf::Matrix3x3 m_rot;
@@ -1009,29 +1009,29 @@ bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std
           cinspection_radius = 2.0;
         }
 
+        //compute WP_yaw
+        double yaw_incr = acos((cos(current_yaw)*errorX + sin(current_yaw)*errorY)/ cinspection_radius);
+        double delta_aux = cos(current_yaw)*errorY - sin(current_yaw)*errorX;
+        if (delta_aux < 0.0) yaw_incr = -yaw_incr;
+        WP_yaw = current_yaw + yaw_incr;
+
         //compute the displacement
         double theta = cinspection_arc_increment/cinspection_radius; // L = theta * radius ; then theta = L/r
         double alpha = (M_PI-theta)/2.0;
         double beta = M_PI_2 - alpha;
         double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
 
-        tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+        tf::Vector3 robot_incr(d*sin(beta), -d*cos(beta), 0.0); //move following a circumference
 
         //rotate the increment to the world frame using the estimated yaw
         tf::Matrix3x3 m_rot;
-        m_rot.setRPY(0, 0, current_yaw);
+        m_rot.setRPY(0, 0, WP_yaw); // use the WP yaw instead of the current_yaw
         tf::Vector3 world_incr = m_rot * robot_incr;
 
         //compute the next WP
         WP_x = current_x + world_incr.getX();
         WP_y = current_y + world_incr.getY();
         WP_z = current_z;
-
-        //compute WP_yaw
-        double yaw_incr = acos((cos(current_yaw)*errorX + sin(current_yaw)*errorY)/ cinspection_radius);
-        double delta_aux = cos(current_yaw)*errorY - sin(current_yaw)*errorX;
-        if (delta_aux < 0.0) yaw_incr = -yaw_incr;
-        WP_yaw = current_yaw + yaw_incr;
         
         performing_cinspection = true;  
         cinspection_status = 1;
@@ -1962,11 +1962,11 @@ void MissionManager::performCircularInspection(){
       double beta = M_PI_2 - alpha;
       double d = sqrt(2*cinspection_radius*cinspection_radius * (1-cos(theta)));
 
-      tf::Vector3 robot_incr(d*cos(beta), -d*sin(beta), 0.0); //move following a circumference
+      tf::Vector3 robot_incr(d*sin(beta), -d*cos(beta), 0.0); //move following a circumference
 
       //rotate the increment to the world frame using the estimated yaw
       tf::Matrix3x3 m_rot;
-      m_rot.setRPY(0, 0, current_yaw);
+      m_rot.setRPY(0, 0, WP_yaw); // use the WP_yaw instead of the current_yaw
       tf::Vector3 world_incr = m_rot * robot_incr;
 
       //compute the next WP
