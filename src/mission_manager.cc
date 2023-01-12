@@ -1970,8 +1970,8 @@ void MissionManager::performCircularInspection(){
       tf::Vector3 world_incr = m_rot * robot_incr;
 
       //compute the next WP
-      WP_x = current_x + world_incr.getX();
-      WP_y = current_y + world_incr.getY();
+      WP_x = WP_x + world_incr.getX();
+      WP_y = WP_y + world_incr.getY();
 
     }else{
 
