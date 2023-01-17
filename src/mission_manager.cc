@@ -1945,7 +1945,7 @@ void MissionManager::performCircularInspection(){
   WP_yaw = atan2(center_errorY, center_errorX);
 
   // update the cinspection_state if necessary
-  double angular_diff = acos(cos(current_yaw)*cos(initial_yaw_cinspection) + sin(current_yaw)*sin(initial_yaw_cinspection));
+  double angular_diff = acos(cos(WP_yaw)*cos(initial_yaw_cinspection) + sin(WP_yaw)*sin(initial_yaw_cinspection));
 
   if((cinspection_state == 0) && (angular_diff > M_PI_2)) cinspection_state = 1; // first 90 deg. completed
   else if((cinspection_state == 1) && (angular_diff < 0.02)) cinspection_state = 2; // circumference completed
@@ -2214,7 +2214,7 @@ void MissionManager::createCircularInspectionPath(){
   double theta_incr = 2*M_PI/num_points;
   double theta = 0.0;
 
-  for(int i = 0; i < num_points; i++){
+  for(int i = 0; i <= num_points; i++){
     point.pose.position.x = center_x_cinspection + cinspection_radius*cos(theta);
     point.pose.position.y = center_y_cinspection + cinspection_radius*sin(theta);
     point.pose.position.z = current_z;
