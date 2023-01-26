@@ -394,7 +394,7 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
   
     sweep_state = 0; // going to the right
   
-    ROS_WARN("Starting new sweeping (W: %2.2fm, H: %2.2fm, H_step: %2.2fm, incr: %2.2fm)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
+    ROS_WARN("Starting new sweeping (W: %2.2f m, H: %2.2f m, H_step: %2.2f m, incr: %2.2f m)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
 
     sweep_reaching_end = false;
 
@@ -541,7 +541,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       sweep_status = 1;
       nh_.setParam("sweep_status", sweep_status);
     
-      ROS_WARN("Resuming sweeping (W: %2.2fm, H: %2.2fm, H_step: %2.2fm, incr: %2.2fm)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
+      ROS_WARN("Resuming sweeping (W: %2.2f m, H: %2.2f m, H_step: %2.2f m, incr: %2.2f m)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
@@ -642,7 +642,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     nh_.setParam("vinspection_status", vinspection_status);
   
     vinspection_state = 0; // going up
-    ROS_WARN("Starting new vertical inspection (H: %2.2fm, W: %2.2fm, incr: %2.2fm)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
+    ROS_WARN("Starting new vertical inspection (H: %2.2f m, W: %2.2f m, incr: %2.2f m)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
 
     vinspection_reaching_end = false;
 
@@ -789,7 +789,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       vinspection_status = 1;
       nh_.setParam("vinspection_status", vinspection_status);
     
-      ROS_WARN("Resuming vertical inspection (H: %2.2fm, W: %2.2fm, incr: %2.2fm)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
+      ROS_WARN("Resuming vertical inspection (H: %2.2f m, W: %2.2f m, incr: %2.2f m)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
@@ -900,12 +900,13 @@ bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularIn
       nh_.setParam("cinspection_status", cinspection_status);
 
       cinspection_state = 0; // going up
-      ROS_WARN("Starting new circular inspection (R: %2.2fm, incr: %2.2fm)", cinspection_radius, cinspection_arc_increment);
+      ROS_WARN("Starting new circular inspection (R: %2.2f m, incr: %2.2f m)", cinspection_radius, cinspection_arc_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
       nh_.setParam("going_home", false);
       nh_.setParam("going_to_point", false);
+      nh_.setParam("keeping_orientation", false);
       performing_sweep = false;
       sweep_status = 0;
       nh_.setParam("sweep_status", sweep_status);
@@ -1041,12 +1042,13 @@ bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std
         cinspection_status = 1;
         nh_.setParam("cinspection_status", cinspection_status);
       
-        ROS_WARN("Resuming circular inspection (R: %2.2fm, incr: %2.2fm)", cinspection_radius, cinspection_arc_increment);
+        ROS_WARN("Resuming circular inspection (R: %2.2f m, incr: %2.2f m)", cinspection_radius, cinspection_arc_increment);
 
         //stop all the other behaviours
         nh_.setParam("hovering", false);
         nh_.setParam("going_home", false);
         nh_.setParam("going_to_point", false);
+        nh_.setParam("keeping_orientation", false);
         performing_sweep = false;
         sweep_status = 0;
         nh_.setParam("sweep_status", sweep_status);
