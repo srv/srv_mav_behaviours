@@ -393,7 +393,8 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     nh_.setParam("sweep_status", sweep_status);
   
     sweep_state = 0; // going to the right
-    ROS_WARN("Starting new sweep");
+  
+    ROS_WARN("Starting new sweeping (W: %2.2fm, H: %2.2fm, H_step: %2.2fm, incr: %2.2fm)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
 
     sweep_reaching_end = false;
 
@@ -540,7 +541,7 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       sweep_status = 1;
       nh_.setParam("sweep_status", sweep_status);
     
-      ROS_WARN("Resuming sweep");
+      ROS_WARN("Resuming sweeping (W: %2.2fm, H: %2.2fm, H_step: %2.2fm, incr: %2.2fm)", (sweep_wall_to_wall)?(std::numeric_limits<double>::infinity()):sweep_y_size, sweep_z_size, sweep_z_increment, sweep_y_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
@@ -641,7 +642,7 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     nh_.setParam("vinspection_status", vinspection_status);
   
     vinspection_state = 0; // going up
-    ROS_WARN("Starting new vertical inspection");
+    ROS_WARN("Starting new vertical inspection (H: %2.2fm, W: %2.2fm, incr: %2.2fm)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
 
     vinspection_reaching_end = false;
 
@@ -788,7 +789,7 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       vinspection_status = 1;
       nh_.setParam("vinspection_status", vinspection_status);
     
-      ROS_WARN("Resuming vertical inspection");
+      ROS_WARN("Resuming vertical inspection (H: %2.2fm, W: %2.2fm, incr: %2.2fm)", (vinspection_to_ceiling)?(std::numeric_limits<double>::infinity()):vinspection_z_size, vinspection_y_size, vinspection_z_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
@@ -899,7 +900,7 @@ bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularIn
       nh_.setParam("cinspection_status", cinspection_status);
 
       cinspection_state = 0; // going up
-      ROS_WARN("Starting new circular inspection");
+      ROS_WARN("Starting new circular inspection (R: %2.2fm, incr: %2.2fm)", cinspection_radius, cinspection_arc_increment);
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
@@ -1040,7 +1041,7 @@ bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std
         cinspection_status = 1;
         nh_.setParam("cinspection_status", cinspection_status);
       
-        ROS_WARN("Resuming circular inspection");
+        ROS_WARN("Resuming circular inspection (R: %2.2fm, incr: %2.2fm)", cinspection_radius, cinspection_arc_increment);
 
         //stop all the other behaviours
         nh_.setParam("hovering", false);
@@ -1283,6 +1284,13 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
 bool MissionManager::keepOrientation(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
   if(!odom_received) return false;
+
+  if(performing_cinspection){//yaw control used by another autonomous behaviour
+
+      ROS_WARN("Keep_orientation is not available. Another behaviour is using the yaw control");
+      return false;
+
+    }
 
   performKeepOrientation();
   return true;
