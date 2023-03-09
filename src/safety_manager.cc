@@ -59,6 +59,9 @@ void SafetyManager::configure(){
   nh_.param("frequency", frequency, 50.0);
   ROS_INFO("Frequency: %2.2f", frequency);
 
+  nh_.param<std::string>("base_frame", base_frame, "base_link");
+  ROS_INFO("Base Frame: %s", base_frame.c_str());
+
   nh_.param("robot_radius", robot_radius, 0.5);
   ROS_INFO("Robot radius: %2.2f", robot_radius);
 
@@ -346,10 +349,10 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   //apply filter
   condrem.filter(point_cloud);
 
-  //listen for OS1_sensor to base_link transform and transform the point_cloud
+  //listen for OS1_sensor to base_frame transform and transform the point_cloud
   tf::StampedTransform bslk2OS1;
   try{
-    tf_lis_.lookupTransform("/base_link", point_cloud_msg->header.frame_id, ros::Time(0), bslk2OS1);
+    tf_lis_.lookupTransform("/"+base_frame, point_cloud_msg->header.frame_id, ros::Time(0), bslk2OS1);
   }catch (tf::TransformException &ex) {
     ROS_WARN("Could NOT get TF between baselink and %s: %s", point_cloud_msg->header.frame_id.c_str(), ex.what());
     return;
@@ -376,7 +379,7 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   tf::transformTFToEigen(tf_aux, iso_eig);
   pcl::transformPointCloud (point_cloud, point_cloud,iso_eig.matrix());
 
-  point_cloud.header.frame_id = "base_link";
+  point_cloud.header.frame_id = base_frame;
 
   //compensate robot roll and pitch
     
@@ -396,15 +399,15 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   m_eig4.block(0,0,3,3) = m_eig;
   pcl::transformPointCloud (point_cloud, point_cloud, m_eig4);
 
-  point_cloud.header.frame_id = "base_link_hori";
+  point_cloud.header.frame_id = base_frame+"_hori";
 
-  //publish TF from base_link to base_link_hori
+  //publish TF from base_frame to base_frame_hori
   tf::Transform bslk2bslk_hori;
   tf::Quaternion q;
   q.setRPY(-roll, -pitch, 0.0);
   bslk2bslk_hori.setRotation(q);
   bslk2bslk_hori.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), "base_link", "base_link_hori"));
+  tf_br_.sendTransform(tf::StampedTransform(bslk2bslk_hori, ros::Time::now(), base_frame, base_frame+"_hori"));
  
 
   
