@@ -1241,12 +1241,12 @@ bool MissionManager::savePoint(srv_mav_behaviours::SavePoint::Request &req, srv_
 
 bool MissionManager::goToPoint(srv_mav_behaviours::GoToPoint::Request &req, srv_mav_behaviours::GoToPoint::Response &res){
 
-  performGoToPoint(req.x, req.y, req.z);
+  performGoToPoint(req.x, req.y, req.z, req.looking_forward);
 
   return true;
 }
 
-void MissionManager::performGoToPoint(double point_x, double point_y, double point_z){
+void MissionManager::performGoToPoint(double point_x, double point_y, double point_z, bool looking_forward){
 
   // request control to the Safety Manager
   srv_mav_behaviours::RequestPositionControl request_position_control;
@@ -1278,6 +1278,21 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
 
     newWPPath();
     addWP2WPPath(WP_x, WP_y, WP_z);
+
+    if(looking_forward){
+
+      srv_mav_behaviours::RequestYawControl request_yaw_control;
+      request_yaw_control_client_.call(request_yaw_control);
+
+      if(request_yaw_control.response.allowed){ // compute the desired yaw
+        
+        double error_x = WP_x - current_x;
+        double error_y = WP_y - current_y;
+        WP_yaw = atan2(error_y, error_x);
+
+      }
+
+    }
 
   }
 

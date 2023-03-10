@@ -178,7 +178,7 @@ class MissionManager {
   void performCircularInspection();
   void performHovering();
   void performGoHome();
-  void performGoToPoint(double point_x, double point_y, double point_z);
+  void performGoToPoint(double point_x, double point_y, double point_z, bool looking_forward);
   void performKeepOrientation();
 
   void publishMissionPath();
