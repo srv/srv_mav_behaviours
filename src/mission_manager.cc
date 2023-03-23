@@ -1654,6 +1654,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   if(publish_WP){
     pose_pub_.publish(pose_WP);
+    publishWPPath();
   }
 
   if(publish_mission_path){
@@ -1663,8 +1664,6 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       publish_mission_path = false;
     }
   }
-
-  publishWPPath();
 
 }
 
