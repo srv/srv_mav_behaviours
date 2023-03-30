@@ -65,6 +65,7 @@ add_service_files(
   StartSweep.srv
   StartVerticalInspection.srv
   StartCircularInspection.srv
+  StartFollowPath.srv
   GoToPoint.srv
   SavePoint.srv
 )
@@ -72,7 +73,8 @@ add_service_files(
 # Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs  # Or other packages containing msgs
+  std_msgs  
+  nav_msgs# Or other packages containing msgs
 )
 
 # Defining the package
@@ -146,4 +148,13 @@ target_link_libraries(mission_manager_node
                       )
 add_dependencies(mission_manager_node 
                       ${PROJECT_NAME}_gencfg) 
+                      
+# --------------Path demo----------------
+add_executable(path_demo
+               src/path_demo.cc)
+target_link_libraries(path_demo
+               ${catkin_LIBRARIES}
+               ${OpenCV_LIBRARIES}
+               ${Boost_LIBRARIES}
+               )
 

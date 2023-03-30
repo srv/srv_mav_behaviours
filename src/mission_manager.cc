@@ -141,7 +141,7 @@ void MissionManager::configure(){
 
   vinspection_y_size = vinspection_z_size = vinspection_z_increment = 0.0;
 
-    // --------------parameters for circular inspection-----------------
+  // --------------parameters for circular inspection-----------------
 
   performing_cinspection = false;
 
@@ -157,6 +157,17 @@ void MissionManager::configure(){
   nh_.setParam("cinspection_status", cinspection_status);
 
   cinspection_radius = cinspection_arc_increment = 0.0;
+
+  // --------------parameters for follow path-----------------
+
+  performing_follow_path = false;
+
+  follow_path_status = 0; //0-->No follow path in course
+                          //1-->Follow path
+                          //2-->Paused
+  nh_.setParam("follow_path_status", follow_path_status);
+
+  follow_path_current_index = 0;
 
   // -------------------parameters for hovering--------------------
 
@@ -196,6 +207,10 @@ void MissionManager::configure(){
   stop_circular_inspection_srv_ = nh_.advertiseService("stop_circular_inspection", &MissionManager::stopCircularInspection, this);
   pause_circular_inspection_srv_ = nh_.advertiseService("pause_circular_inspection", &MissionManager::pauseCircularInspection, this);
   resume_circular_inspection_srv_ = nh_.advertiseService("resume_circular_inspection", &MissionManager::resumeCircularInspection, this);
+  start_follow_path_srv_ = nh_.advertiseService("start_follow_path", &MissionManager::startFollowPath, this);
+  stop_follow_path_srv_ = nh_.advertiseService("stop_follow_path", &MissionManager::stopFollowPath, this);
+  pause_follow_path_srv_ = nh_.advertiseService("pause_follow_path", &MissionManager::pauseFollowPath, this);
+  resume_follow_path_srv_ = nh_.advertiseService("resume_follow_path", &MissionManager::resumeFollowPath, this);
   hover_srv_ = nh_.advertiseService("hover", &MissionManager::hover, this);
   go_home_srv_ = nh_.advertiseService("go_home", &MissionManager::goHome, this);
   set_home_srv_ = nh_.advertiseService("set_home", &MissionManager::setHome, this);
@@ -408,6 +423,9 @@ bool MissionManager::startSweep(srv_mav_behaviours::StartSweep::Request &req, sr
     performing_cinspection = false;
     cinspection_status = 0;
     nh_.setParam("cinspection_status", cinspection_status);
+    performing_follow_path = false;
+    follow_path_status = 0;
+    nh_.setParam("follow_path_status", follow_path_status);
 
     if(!sweep_wall_to_wall){
       createSweepingPath();
@@ -553,6 +571,9 @@ bool MissionManager::resumeSweep(std_srvs::Empty::Request &req, std_srvs::Empty:
       performing_cinspection = false;
       cinspection_status = 0;
       nh_.setParam("cinspection_status", cinspection_status);
+      performing_follow_path = false;
+      follow_path_status = 0;
+      nh_.setParam("follow_path_status", follow_path_status);
 
       if(!sweep_wall_to_wall){
         recomputeSweepingPath();
@@ -656,6 +677,9 @@ bool MissionManager::startVerticalInspection(srv_mav_behaviours::StartVerticalIn
     performing_cinspection = false;
     cinspection_status = 0;
     nh_.setParam("cinspection_status", cinspection_status);
+    performing_follow_path = false;
+    follow_path_status = 0;
+    nh_.setParam("follow_path_status", follow_path_status);
 
     if(!vinspection_to_ceiling){
       createVerticalInspectionPath();
@@ -801,6 +825,9 @@ bool MissionManager::resumeVerticalInspection(std_srvs::Empty::Request &req, std
       performing_cinspection = false;
       cinspection_status = 0;
       nh_.setParam("cinspection_status", cinspection_status);
+      performing_follow_path = false;
+      follow_path_status = 0;
+      nh_.setParam("follow_path_status", follow_path_status);
 
       if(!vinspection_to_ceiling){
         recomputeVerticalInspectionPath();
@@ -899,7 +926,7 @@ bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularIn
       cinspection_status = 1;
       nh_.setParam("cinspection_status", cinspection_status);
 
-      cinspection_state = 0; // going up
+      cinspection_state = 0; //starting (first X degrees)
       ROS_WARN("Starting new circular inspection (R: %2.2f m, incr: %2.2f m)", cinspection_radius, cinspection_arc_increment);
 
       //stop all the other behaviours
@@ -913,6 +940,9 @@ bool MissionManager::startCircularInspection(srv_mav_behaviours::StartCircularIn
       performing_vinspection = false;
       vinspection_status = 0;
       nh_.setParam("vinspection_status", vinspection_status);
+      performing_follow_path = false;
+      follow_path_status = 0;
+      nh_.setParam("follow_path_status", follow_path_status);
 
       createCircularInspectionPath();
       publish_mission_path = true;
@@ -966,14 +996,6 @@ bool MissionManager::pauseCircularInspection(std_srvs::Empty::Request &req, std_
     // give up control to the Safety Manager
     srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
     give_up_position_control_client_.call(give_up_position_control);
-
-    // save WP to allow resuming the circular inspection
-    pausedMission_WP_x = WP_x;
-    pausedMission_WP_y = WP_y;
-    pausedMission_WP_z = WP_z;
-    pausedMission_WP_yaw = WP_yaw;
-
-    pausedMission_initial_yaw = initial_yaw_cinspection; // unnecessary for this behaviour
 
     removeLastWPPath();
     addWP2WPPath(current_x, current_y, current_z);
@@ -1055,6 +1077,9 @@ bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std
         performing_vinspection = false;
         vinspection_status = 0;
         nh_.setParam("vinspection_status", vinspection_status);
+        performing_follow_path = false;
+        follow_path_status = 0;
+        nh_.setParam("follow_path_status", follow_path_status);
 
         recomputeCircularInspectionPath();
 
@@ -1073,6 +1098,192 @@ bool MissionManager::resumeCircularInspection(std_srvs::Empty::Request &req, std
 
   return true;
 }
+
+bool MissionManager::startFollowPath(srv_mav_behaviours::StartFollowPath::Request &req, srv_mav_behaviours::StartFollowPath::Response &res){
+
+  if(!odom_received) return false;
+
+  if(performing_follow_path || (follow_path_status == 2)){
+    ROS_WARN("Follow path already in process!!");
+    return false;
+  }
+
+  if(min_dist_down < min_height){
+    ROS_WARN("Obstacle below the MAV"); 
+    return true;
+  }
+
+  if(req.path.poses.empty()){
+    ROS_WARN("Received path is empty");
+    return false;
+  }
+
+  // request position control to the Safety Manager
+  srv_mav_behaviours::RequestPositionControl request_position_control;
+  request_position_control_client_.call(request_position_control);
+
+  if(request_position_control.response.allowed){ // request yaw control to the Safety Manager
+
+    srv_mav_behaviours::RequestYawControl request_yaw_control;
+    request_yaw_control_client_.call(request_yaw_control);
+
+    if(request_yaw_control.response.allowed){ // start following path
+
+      WP_x = req.path.poses[0].pose.position.x;
+      WP_y = req.path.poses[0].pose.position.y;
+      WP_z = req.path.poses[0].pose.position.z;
+
+      double error_x = WP_x - current_x;
+      double error_y = WP_y - current_y;
+      WP_yaw = atan2(error_y, error_x);
+
+      performing_follow_path = true;  
+      follow_path_status = 1;
+      nh_.setParam("follow_path_status", follow_path_status);
+
+      follow_path_current_index = 0;
+      ROS_WARN("Following path with %ld points", req.path.poses.size());
+      ROS_WARN("Going to point 1 of %ld in path", mission_path->poses.size());
+
+      //stop all the other behaviours
+      nh_.setParam("hovering", false);
+      nh_.setParam("going_home", false);
+      nh_.setParam("going_to_point", false);
+      nh_.setParam("keeping_orientation", false);
+      performing_sweep = false;
+      sweep_status = 0;
+      nh_.setParam("sweep_status", sweep_status);
+      performing_vinspection = false;
+      vinspection_status = 0;
+      nh_.setParam("vinspection_status", vinspection_status);
+      performing_cinspection = false;
+      cinspection_status = 0;
+      nh_.setParam("cinspection_status", cinspection_status);
+
+      createPathToFollow(req.path); //TODO: implement a function to copy the path
+      publish_mission_path = true;
+
+      newWPPath();
+      addWP2WPPath(WP_x, WP_y, WP_z);
+
+    }
+  }
+
+  return true;
+}
+
+bool MissionManager::stopFollowPath(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_follow_path){
+
+    performing_follow_path = false;
+    ROS_WARN("Follow path stopped");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
+
+  }else if(follow_path_status == 2){ // the last follow path is paused
+
+    // performing_follow_path is already false
+    follow_path_status = 0;
+    nh_.setParam("follow_path_status", follow_path_status);
+    ROS_WARN("Follow path stopped");
+
+  }else{
+
+    ROS_WARN("No follow path in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::pauseFollowPath(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(performing_follow_path){
+
+    performing_follow_path = false;
+    follow_path_status = 2;
+    nh_.setParam("follow_path_status", follow_path_status);
+    ROS_WARN("Follow path paused");
+
+    // give up control to the Safety Manager
+    srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+    give_up_position_control_client_.call(give_up_position_control);
+
+    removeLastWPPath();
+    addWP2WPPath(current_x, current_y, current_z);
+
+  }else{
+
+    ROS_WARN("No follow path in course");
+
+  }
+
+  return true;
+}
+
+bool MissionManager::resumeFollowPath(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
+
+  if(follow_path_status == 2){ // the last follow path is paused
+
+    // request position control to the Safety Manager
+    srv_mav_behaviours::RequestPositionControl request_position_control;
+    request_position_control_client_.call(request_position_control);
+
+    if(request_position_control.response.allowed){ // request yaw control to the Safety Manager
+
+      srv_mav_behaviours::RequestYawControl request_yaw_control;
+      request_yaw_control_client_.call(request_yaw_control);
+
+      if(request_yaw_control.response.allowed){ // resume the follow path
+
+        WP_x = mission_path->poses[follow_path_current_index].pose.position.x;
+        WP_y = mission_path->poses[follow_path_current_index].pose.position.y;
+        WP_z = mission_path->poses[follow_path_current_index].pose.position.z;
+
+        double error_x = WP_x - current_x;
+        double error_y = WP_y - current_y;
+        WP_yaw = atan2(error_y, error_x);
+
+        performing_follow_path = true;  
+        follow_path_status = 1;
+        nh_.setParam("follow_path_status", follow_path_status);
+      
+        ROS_WARN("Resuming follow path from point %d of %ld", follow_path_current_index+1, mission_path->poses.size());
+
+        //stop all the other behaviours
+        nh_.setParam("hovering", false);
+        nh_.setParam("going_home", false);
+        nh_.setParam("going_to_point", false);
+        nh_.setParam("keeping_orientation", false);
+        performing_sweep = false;
+        sweep_status = 0;
+        nh_.setParam("sweep_status", sweep_status);
+        performing_vinspection = false;
+        vinspection_status = 0;
+        nh_.setParam("vinspection_status", vinspection_status);
+        performing_cinspection = false;
+        cinspection_status = 0;
+        nh_.setParam("cinspection_status", cinspection_status);
+
+        addWP2WPPath(current_x, current_y, current_z);
+        addWP2WPPath(WP_x, WP_y, WP_z);
+
+      }
+
+    }
+
+  }else{
+
+    ROS_WARN("No follow path in pause");
+
+  }
+
+  return true;
+}
+
 
 bool MissionManager::hover(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res){
 
@@ -1135,13 +1346,14 @@ void MissionManager::performHovering(){
       ROS_WARN("Circular inspection paused");
       performing_cinspection = false;
 
-      // save WP to allow resuming the circular inspection
-      pausedMission_WP_x = WP_x;
-      pausedMission_WP_y = WP_y;
-      pausedMission_WP_z = WP_z;
-      pausedMission_WP_yaw = WP_yaw;
+    }
 
-      pausedMission_initial_yaw = initial_yaw_cinspection; // unnecessary for this behaviour
+    if(performing_follow_path){//pause the follow path in course (if any)
+
+      follow_path_status = 2;
+      nh_.setParam("follow_path_status", follow_path_status);
+      ROS_WARN("Follow path paused");
+      performing_follow_path = false;
 
     }
 
@@ -1186,6 +1398,9 @@ void MissionManager::performGoHome(){
     performing_cinspection = false;
     cinspection_status = 0;
     nh_.setParam("cinspection_status", cinspection_status);
+    performing_follow_path = false;
+    follow_path_status = 0;
+    nh_.setParam("follow_path_status", follow_path_status);
 
     ROS_WARN("Going home: %2.2f, %2.2f, %2.2f", home_x, home_y, home_z);
 
@@ -1268,6 +1483,9 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
     performing_cinspection = false;
     cinspection_status = 0;
     nh_.setParam("cinspection_status", cinspection_status);
+    performing_follow_path = false;
+    follow_path_status = 0;
+    nh_.setParam("follow_path_status", follow_path_status);
 
     ROS_WARN("Going to point: %2.2f, %2.2f, %2.2f", point_x, point_y, point_z);
 
@@ -1418,13 +1636,17 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       ROS_WARN("Circular inspection paused");
       performing_cinspection = false;
 
-      // save WP to allow resuming the circular inspection
-      pausedMission_WP_x = WP_x;
-      pausedMission_WP_y = WP_y;
-      pausedMission_WP_z = WP_z;
-      pausedMission_WP_yaw = WP_yaw;
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
 
-      pausedMission_initial_yaw = initial_yaw_cinspection; //unnecessary for this behaviour
+    }
+
+    if(performing_follow_path){//pause the follow path in course (if any)
+
+      follow_path_status = 2;
+      nh_.setParam("follow_path_status", follow_path_status);
+      ROS_WARN("Follow path paused");
+      performing_follow_path = false;
 
       removeLastWPPath();
       addWP2WPPath(current_x, current_y, current_z);
@@ -1447,16 +1669,28 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
       ROS_WARN("Circular inspection paused");
       performing_cinspection = false;
 
-      // save WP to allow resuming the circular inspection
-      pausedMission_WP_x = WP_x;
-      pausedMission_WP_y = WP_y;
-      pausedMission_WP_z = WP_z;
-      pausedMission_WP_yaw = WP_yaw;
+      removeLastWPPath();
+      addWP2WPPath(current_x, current_y, current_z);
 
-      pausedMission_initial_yaw = initial_yaw_cinspection; //unnecessary for this behaviour
+      // give up control to the Safety Manager
+      srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+      give_up_position_control_client_.call(give_up_position_control);
+
+    }
+
+    if(performing_follow_path){//pause the follow path in course (if any)
+
+      follow_path_status = 2;
+      nh_.setParam("follow_path_status", follow_path_status);
+      ROS_WARN("Follow path paused");
+      performing_follow_path = false;
 
       removeLastWPPath();
       addWP2WPPath(current_x, current_y, current_z);
+
+      // give up control to the Safety Manager
+      srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+      give_up_position_control_client_.call(give_up_position_control);
 
     }
 
@@ -1479,6 +1713,12 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   if(performing_cinspection){
 
     performCircularInspection(); //it provides the WP
+
+  }
+
+  if(performing_follow_path){
+
+    performFollowPath(); //it provides the WP
 
   }
 
@@ -1658,7 +1898,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   }
 
   if(publish_mission_path){
-    if ((sweep_status > 0)||(vinspection_status > 0)||(cinspection_status > 0)){//sweeping/vinspection/cinspection in progress or paused
+    if ((sweep_status > 0)||(vinspection_status > 0)||(cinspection_status > 0)||(follow_path_status > 0)){//sweeping/vinspection/cinspection/follow_path in progress or paused
       publishMissionPath();
     }else{
       publish_mission_path = false;
@@ -1957,7 +2197,6 @@ void MissionManager::performVerticalInspection(){
 
 void MissionManager::performCircularInspection(){
 
-
   //always update the WP_yaw to look at the center of the circumference
   double center_errorX = center_x_cinspection-current_x;
   double center_errorY = center_y_cinspection-current_y;
@@ -2010,6 +2249,8 @@ void MissionManager::performCircularInspection(){
       WP_x = WP_x + world_incr.getX();
       WP_y = WP_y + world_incr.getY();
 
+      addWP2WPPath(WP_x, WP_y, WP_z);
+
     }else{
 
       ROS_WARN("Circular inspection finished");
@@ -2018,22 +2259,63 @@ void MissionManager::performCircularInspection(){
       cinspection_status = 0;
       nh_.setParam("cinspection_status", cinspection_status);
 
+      // give up control to the Safety Manager
+      // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+      // give_up_position_control_client_.call(give_up_position_control);
+
+      // start a hovering in the last WP instead of giving up control
+      nh_.setParam("hovering", true);
+      ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+
     }
 
-    if(performing_cinspection){ // a new WP has been defined and the CI has not finished
-      addWP2WPPath(WP_x, WP_y, WP_z);
-    }
   }
 
-  if(!performing_cinspection){ // the circular inspection has finished now
+}
 
-    // give up control to the Safety Manager
-    // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
-    // give_up_position_control_client_.call(give_up_position_control);
+void MissionManager::performFollowPath(){
 
-    // start a hovering in the last WP instead of giving up control
-    nh_.setParam("hovering", true);
-    ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+  double errorX = WP_x-current_x;
+  double errorY = WP_y-current_y;
+  double errorZ = WP_z-current_z;
+
+  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+
+  if(errorWP < WP_tolerance){ // the WP has been reached
+
+    follow_path_current_index ++;
+
+    if(follow_path_current_index < mission_path->poses.size()){
+
+      WP_x = mission_path->poses[follow_path_current_index].pose.position.x;
+      WP_y = mission_path->poses[follow_path_current_index].pose.position.y;
+      WP_z = mission_path->poses[follow_path_current_index].pose.position.z;
+
+      errorX = WP_x - current_x;
+      errorY = WP_y - current_y;
+      WP_yaw = atan2(errorY, errorX);
+
+      addWP2WPPath(WP_x, WP_y, WP_z);
+
+      ROS_WARN("Going to point %d of %ld in path", follow_path_current_index+1, mission_path->poses.size());
+
+    }else{
+
+      ROS_WARN("Following path finished");
+
+      performing_follow_path = false;
+      follow_path_status = 0;
+      nh_.setParam("follow_path_status", follow_path_status);
+
+      // give up control to the Safety Manager
+      // srv_mav_behaviours::GiveUpPositionControl give_up_position_control;
+      // give_up_position_control_client_.call(give_up_position_control);
+
+      // start a hovering in the last WP instead of giving up control
+      nh_.setParam("hovering", true);
+      ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+
+    }
 
   }
 
@@ -2253,6 +2535,17 @@ void MissionManager::recomputeCircularInspectionPath(){
   // we can draw the circumference from scratch
   // the new radius will be used (if updated)
   createCircularInspectionPath();
+
+}
+
+void MissionManager::createPathToFollow(nav_msgs::Path path){
+
+  clearMissionPath();
+
+  mission_path->header.frame_id = world_frame;
+  mission_path->header.stamp = ros::Time::now();
+
+  mission_path->poses = path.poses;
 
 }
 
