@@ -1143,7 +1143,7 @@ bool MissionManager::startFollowPath(srv_mav_behaviours::StartFollowPath::Reques
 
       follow_path_current_index = 0;
       ROS_WARN("Following path with %ld points", req.path.poses.size());
-      ROS_WARN("Going to point 1 of %ld in path", mission_path->poses.size());
+      ROS_WARN("Going to point 1 of %ld in path", req.path.poses.size());
 
       //stop all the other behaviours
       nh_.setParam("hovering", false);
