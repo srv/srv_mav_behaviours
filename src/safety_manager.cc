@@ -65,6 +65,9 @@ void SafetyManager::configure(){
   nh_.param("robot_radius", robot_radius, 0.5);
   ROS_INFO("Robot radius: %2.2f", robot_radius);
 
+  nh_.param("remove_ground_distance", remove_ground_distance, 2.0);
+  ROS_INFO("Remove ground distance: %2.2f", remove_ground_distance);
+
   nh_.param("max_speed", max_speed, 1.0);
   ROS_INFO("Max_speed: %2.2f", max_speed);
 
@@ -413,7 +416,7 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   
   pcl::PassThrough<Point> pass;
   pass.setFilterFieldName("z");
-  if(distance_ground < 2.0){ //flying close to the ground
+  if(distance_ground < remove_ground_distance){ //flying close to the ground
     pass.setFilterLimits(0.0, attenuation_distance_wall); //eliminate all the ground points from the input pointcloud
   }else{
     pass.setFilterLimits(-attenuation_distance_wall, attenuation_distance_wall); //consider only obstacles close to the XY plane of the robot

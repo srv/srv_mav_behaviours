@@ -94,6 +94,7 @@ class SafetyManager {
 
   // Params
   double robot_radius;
+  double remove_ground_distance;
   std::string base_frame;
   double min_distance_wall, min_distance_ceiling, max_height;
   double attenuation_distance_wall, attenuation_distance_ceiling, attenuation_max_height;
