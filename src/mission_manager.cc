@@ -1508,6 +1508,9 @@ void MissionManager::performGoToPoint(double point_x, double point_y, double poi
         double error_y = WP_y - current_y;
         WP_yaw = atan2(error_y, error_x);
 
+        //stop the orientation keeping (if activated)
+        nh_.setParam("keeping_orientation", false);
+
       }
 
     }
