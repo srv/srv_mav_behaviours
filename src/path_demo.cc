@@ -59,10 +59,10 @@ int main(int argc, char** argv) {
   double theta_incr = 2*M_PI/num_points;
   double theta = 0.0;
 
-  double cinspection_radius = 10;
+  double cinspection_radius = 4;
   double center_x_cinspection = -cinspection_radius;
   double center_y_cinspection = 0.0;
-  double height = 5;
+  double height = 2.5;
 
   for(int i = 0; i <= num_points; i++){
     point.pose.position.x = center_x_cinspection + cinspection_radius*cos(theta);

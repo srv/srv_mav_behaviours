@@ -511,10 +511,12 @@ void SafetyManager::timerClb(const ros::TimerEvent& event){
 
   if(yaw_control_granted && yaw_ctrl_vel_received){
 
-    if((desired_vyaw == 0.0) && (flight_status == 3)){
+    if((desired_vyaw == 0.0) && (flight_status == 3)){ //add this line
+    //if((desired_vyaw >= 0.0) && (flight_status == 3)){ //remove this line
+    //  if(desired_vyaw == 0){//remove this line	    
 
       desired_vyaw = yaw_ctrl_vel.angular.z;
-
+    //  } //remove this line
     }else{ // the autonomous yaw control can be stopped sending commands in vYaw
 
       yaw_control_granted = false;
