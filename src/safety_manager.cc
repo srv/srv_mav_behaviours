@@ -62,8 +62,16 @@ void SafetyManager::configure(){
   nh_.param<std::string>("base_frame", base_frame, "base_link");
   ROS_INFO("Base Frame: %s", base_frame.c_str());
 
-  nh_.param("robot_radius", robot_radius, 0.5);
-  ROS_INFO("Robot radius: %2.2f", robot_radius);
+  // nh_.param("robot_radius", robot_radius, 0.5);
+  // ROS_INFO("Robot radius: %2.2f", robot_radius);
+  nh_.param("robot_size_x", robot_size_x, 0.5);
+  ROS_INFO("Robot size X: %2.2f", robot_size_x);
+
+  nh_.param("robot_size_y", robot_size_y, 0.5);
+  ROS_INFO("Robot size Y: %2.2f", robot_size_y);
+
+  nh_.param("robot_size_z", robot_size_z, 0.5);
+  ROS_INFO("Robot size Z: %2.2f", robot_size_z);
 
   nh_.param("remove_ground_distance", remove_ground_distance, 2.0);
   ROS_INFO("Remove ground distance: %2.2f", remove_ground_distance);
@@ -165,6 +173,10 @@ void SafetyManager::configure(){
 void SafetyManager::checkParameters(){
 
   robot_radius = abs(robot_radius);
+  robot_size_x = abs(robot_size_x);
+  robot_size_y = abs(robot_size_y);
+  robot_size_z = abs(robot_size_z);
+  robot_size_R = sqrt((robot_size_x * robot_size_x) + (robot_size_y * robot_size_y))/2;
 
   max_speed = abs(max_speed);
 
@@ -339,20 +351,31 @@ void SafetyManager::pointCloudClb(const PointCloud::ConstPtr& point_cloud_msg){
   if(!(imu_received && distance_ground_received)) return;
 
   //remove the robot parts from the point cloud
-  pcl::ConditionOr<Point>::Ptr range_cond(new pcl::ConditionOr<Point>);//Instantiate condition pointer
-  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::GT, robot_radius)));
-  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::LT, -robot_radius)));
-  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::GT, robot_radius)));
-  range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::LT, -robot_radius)));
-  //build the filter
-  pcl::ConditionalRemoval<Point> condrem;
-  condrem.setCondition(range_cond);
-  condrem.setInputCloud(point_cloud_msg);
-  condrem.setKeepOrganized(false);//Preserving the original point cloud structure means that the number of points is not reduced, and nan is used instead
-  //apply filter
-  condrem.filter(point_cloud);
+  // pcl::ConditionOr<Point>::Ptr range_cond(new pcl::ConditionOr<Point>);//Instantiate condition pointer
+  // range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::GT, robot_radius)));
+  // range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("x", pcl::ComparisonOps::LT, -robot_radius)));
+  // range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::GT, robot_radius)));
+  // range_cond->addComparison(pcl::FieldComparison<Point>::ConstPtr(new pcl::FieldComparison<Point>("y", pcl::ComparisonOps::LT, -robot_radius)));
+  // //build the filter
+  // pcl::ConditionalRemoval<Point> condrem;
+  // condrem.setCondition(range_cond);
+  // condrem.setInputCloud(point_cloud_msg);
+  // condrem.setKeepOrganized(false);//Preserving the original point cloud structure means that the number of points is not reduced, and nan is used instead
+  // //apply filter
+  // condrem.filter(point_cloud);
 
-  //listen for OS1_sensor to base_frame transform and transform the point_cloud
+  // Filtering points inside the cuboid of robot's size
+  pcl::CropBox<Point> crop_box_filter;
+  crop_box_filter.setInputCloud(point_cloud_msg);
+  
+  crop_box_filter.setMin(Eigen::Vector4f(-robot_size_x / 2, -robot_size_y / 2, -robot_size_z / 2, 1.0f));
+  crop_box_filter.setMax(Eigen::Vector4f(robot_size_x / 2, robot_size_y / 2, robot_size_z / 2, 1.0f));
+  crop_box_filter.setNegative(true);
+
+  crop_box_filter.setInputCloud(point_cloud_msg);
+  crop_box_filter.filter(point_cloud);
+
+  //listen for lidar frame to base_frame transform and transform the point_cloud
   tf::StampedTransform bslk2OS1;
   try{
     tf_lis_.lookupTransform("/"+base_frame, point_cloud_msg->header.frame_id, ros::Time(0), bslk2OS1);
@@ -907,8 +930,19 @@ float SafetyManager::getMinDistance(int direction){
   fc.setInputCloud (point_cloud_ptr);
   fc.setVerticalFOV (degrees_for_attenuation);
   fc.setHorizontalFOV (degrees_for_attenuation);
-  fc.setNearPlaneDistance (robot_radius);
   fc.setFarPlaneDistance (100.0);
+
+  // N, S, E, W directions
+  if(direction % 2 == 1){
+    if(direction == 1 || direction == 5){
+      fc.setNearPlaneDistance (robot_size_x / 2);
+    } else {
+      fc.setNearPlaneDistance (robot_size_y / 2);
+    }
+    
+  } else {
+    fc.setNearPlaneDistance (robot_size_R);
+  }
 
   Eigen::Quaternionf rot;
   rot.setFromTwoVectors(Eigen::Vector3f(1.0,0.0,0.0), Eigen::Vector3f(x_comp, y_comp, z_comp));

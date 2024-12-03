@@ -46,6 +46,7 @@
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/frustum_culling.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/common/transforms.h>
 
@@ -94,6 +95,7 @@ class SafetyManager {
 
   // Params
   double robot_radius;
+  double robot_size_x, robot_size_y, robot_size_z, robot_size_R;
   double remove_ground_distance;
   std::string base_frame;
   double min_distance_wall, min_distance_ceiling, max_height;
