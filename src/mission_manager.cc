@@ -183,7 +183,9 @@ void MissionManager::configure(){
   nh_.setParam("keeping_orientation", false);
 
   // Publishers
-  pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
+  // pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
+  pose_pub_ = nh_.advertise<srv_mav_msgs::MAVWP>("way_point", 1);
+  pose_pub_vis_ = nh_.advertise<geometry_msgs::PoseStamped>("way_point_vis", 1);
   mission_path_pub_ = nh_.advertise<nav_msgs::Path>("mission_path", 1);
   WP_path_pub_ = nh_.advertise<nav_msgs::Path>("wp_path", 1);
 
@@ -1725,6 +1727,25 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
   }
 
+  bool going_to_point, going_home;
+  nh_.getParam("going_to_point", going_to_point);
+  nh_.getParam("going_home", going_home);
+
+  if(going_to_point || going_home){
+
+    double errorX, errorY, errorZ;
+    double errorWP = getWPError(errorX, errorY, errorZ);
+
+    // Home or point is reached -> hovering
+    if(errorWP < WP_tolerance){
+      nh_.setParam("going_home", false);
+      nh_.setParam("going_to_point", false);
+
+      nh_.setParam("hovering", true);
+      ROS_WARN("Hovering at %2.2f, %2.2f, %2.2f", WP_x, WP_y, WP_z);
+    }
+  }
+
   geometry_msgs::PosePtr pose_WP(new geometry_msgs::Pose);
   bool publish_WP = false;
 
@@ -1738,10 +1759,8 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
     if(follow_trajectory){
 
-      double errorX = WP_x-current_x;
-      double errorY = WP_y-current_y;
-      double errorZ = WP_z-current_z;
-      double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+      double errorX, errorY, errorZ;
+      double errorWP = getWPError(errorX, errorY, errorZ);
 
       if(errorWP > WP_tolerance){ //we are far from the WP
 
@@ -1761,7 +1780,7 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
         tf::Vector3 WPs_dir_vect = tf::Vector3(Ap, Bp, Cp);
 
         //compute the distance from the current position to the line connecting both WPs
-        double distToPath = (((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length())/(WPs_dir_vect.length());
+        distToPath = (((current_pose_vect-prev_WP_vect).cross(WPs_dir_vect)).length())/(WPs_dir_vect.length());
 
         //get the plane (Ap*x + Bp*y + Cp*z + D = 0) containing the current pose and whose normal is the direction vector
         //of the line containing both WPs. The only missing term is D.
@@ -1896,7 +1915,17 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
   }
 
   if(publish_WP){
-    pose_pub_.publish(pose_WP);
+    srv_mav_msgs::MAVWP wp;
+    wp.dist_to_path = distToPath;
+    wp.way_point = *pose_WP;
+    // pose_pub_.publish(pose_WP);
+    pose_pub_.publish(wp);
+
+    geometry_msgs::PoseStamped pose_St_WP;
+    pose_St_WP.header.frame_id = "odom";
+    pose_St_WP.header.stamp = ros::Time::now();
+    pose_St_WP.pose = *pose_WP;
+    pose_pub_vis_.publish(pose_St_WP);
     publishWPPath();
   }
 
@@ -1912,11 +1941,9 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
 
 void MissionManager::performSweep(){
 
-  double errorX = WP_x-current_x;
-  double errorY = WP_y-current_y;
-  double errorZ = WP_z-current_z;
+  double errorX, errorY, errorZ;
+  double errorWP = getWPError(errorX, errorY, errorZ);
   double errorXY = sqrt(errorX*errorX + errorY*errorY);
-  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
 
   if(errorWP < WP_tolerance){ // the WP has been reached
 
@@ -2050,11 +2077,8 @@ void MissionManager::performSweep(){
 
 void MissionManager::performVerticalInspection(){
 
-  double errorX = WP_x-current_x;
-  double errorY = WP_y-current_y;
-  double errorZ = WP_z-current_z;
-
-  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+  double errorX, errorY, errorZ;
+  double errorWP = getWPError(errorX, errorY, errorZ);
 
   if(errorWP < WP_tolerance){ // the WP has been reached
 
@@ -2216,11 +2240,8 @@ void MissionManager::performCircularInspection(){
   if((cinspection_state == 0) && (angular_diff > M_PI_2)) cinspection_state = 1; // first 90 deg. completed
   else if((cinspection_state == 1) && (angular_diff < 0.02)) cinspection_state = 2; // circumference completed
   
-  double errorX = WP_x-current_x;
-  double errorY = WP_y-current_y;
-  double errorZ = WP_z-current_z;
-
-  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+  double errorX, errorY, errorZ;
+  double errorWP = getWPError(errorX, errorY, errorZ);
 
   if(errorWP < WP_tolerance){ // the WP has been reached
 
@@ -2278,11 +2299,8 @@ void MissionManager::performCircularInspection(){
 
 void MissionManager::performFollowPath(){
 
-  double errorX = WP_x-current_x;
-  double errorY = WP_y-current_y;
-  double errorZ = WP_z-current_z;
-
-  double errorWP = sqrt(errorX*errorX + errorY*errorY + errorZ*errorZ);
+  double errorX, errorY, errorZ;
+  double errorWP = getWPError(errorX, errorY, errorZ);
 
   if(errorWP < WP_tolerance){ // the WP has been reached
 
@@ -2596,6 +2614,16 @@ void MissionManager::addWP2WPPath(double x, double y, double z){
 void MissionManager::removeLastWPPath(){
 
   WP_path->poses.pop_back();
+
+}
+
+double MissionManager::getWPError(double &error_x, double &error_y, double &error_z){
+
+  error_x = WP_x-current_x;
+  error_y = WP_y-current_y;
+  error_z = WP_z-current_z;
+
+  return sqrt(error_x*error_x + error_y*error_y + error_z*error_z);
 
 }
 

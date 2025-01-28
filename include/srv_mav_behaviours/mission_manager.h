@@ -44,6 +44,8 @@
 #include <srv_mav_behaviours/GoToPoint.h>
 #include <srv_mav_behaviours/SavePoint.h>
 
+#include <srv_mav_msgs/MAVWP.h>
+
 namespace srv_mav_behaviours {
 
 class MissionManager {
@@ -58,6 +60,7 @@ class MissionManager {
   ros::NodeHandle nh_;
 
   ros::Publisher pose_pub_;
+  ros::Publisher pose_pub_vis_;
   ros::Publisher mission_path_pub_;
   ros::Publisher WP_path_pub_;
   ros::Subscriber odom_subs_;
@@ -75,6 +78,7 @@ class MissionManager {
   bool follow_trajectory;
   double follow_trajectory_delta; // maximum distance to the VTP
   double follow_trajectory_lambda; // maximum distance to the path
+  double distToPath;
 
   // Global variables
   std::string world_frame;
@@ -206,6 +210,8 @@ class MissionManager {
   void newWPPath();
   void addWP2WPPath(double x, double y, double z);
   void removeLastWPPath();
+
+  double getWPError(double &error_x, double &error_y, double &error_z);
 
 };
 
