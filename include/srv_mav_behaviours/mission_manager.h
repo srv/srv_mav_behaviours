@@ -45,6 +45,7 @@
 #include <srv_mav_behaviours/SavePoint.h>
 
 #include <srv_mav_msgs/MAVWP.h>
+#include "visualization_msgs/Marker.h"
 
 namespace srv_mav_behaviours {
 
@@ -63,6 +64,7 @@ class MissionManager {
   ros::Publisher pose_pub_vis_;
   ros::Publisher mission_path_pub_;
   ros::Publisher WP_path_pub_;
+  ros::Publisher home_pub_vis_;
   ros::Subscriber odom_subs_;
   ros::Subscriber min_distance_left_subs_, min_distance_right_subs_, min_distance_up_subs_, min_distance_down_subs_;
 
@@ -212,6 +214,7 @@ class MissionManager {
   void removeLastWPPath();
 
   double getWPError(double &error_x, double &error_y, double &error_z);
+  void publishHomeVisualization(const ros::Publisher &home_pub_vis);
 
 };
 

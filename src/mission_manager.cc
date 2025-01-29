@@ -183,11 +183,11 @@ void MissionManager::configure(){
   nh_.setParam("keeping_orientation", false);
 
   // Publishers
-  // pose_pub_ = nh_.advertise<geometry_msgs::Pose>("way_point", 1);
   pose_pub_ = nh_.advertise<srv_mav_msgs::MAVWP>("way_point", 1);
   pose_pub_vis_ = nh_.advertise<geometry_msgs::PoseStamped>("way_point_vis", 1);
   mission_path_pub_ = nh_.advertise<nav_msgs::Path>("mission_path", 1);
   WP_path_pub_ = nh_.advertise<nav_msgs::Path>("wp_path", 1);
+  home_pub_vis_ = nh_.advertise<visualization_msgs::Marker>("/home_vis", 1);
 
   // Subscribers
   odom_subs_ = nh_.subscribe("odom", 1, &MissionManager::odomClb, this);
@@ -1937,6 +1937,9 @@ void MissionManager::timerClb(const ros::TimerEvent& event){
     }
   }
 
+  // Home visualization
+  publishHomeVisualization(home_pub_vis_);
+
 }
 
 void MissionManager::performSweep(){
@@ -2625,6 +2628,31 @@ double MissionManager::getWPError(double &error_x, double &error_y, double &erro
 
   return sqrt(error_x*error_x + error_y*error_y + error_z*error_z);
 
+}
+
+void MissionManager::publishHomeVisualization(const ros::Publisher &home_pub_vis){
+
+  visualization_msgs::Marker aux_marker;
+  aux_marker.action = visualization_msgs::Marker::DELETEALL;
+  aux_marker.header.frame_id = "odom";
+  aux_marker.header.stamp = ros::Time::now();
+  aux_marker.lifetime = ros::Duration(2.0);
+  aux_marker.ns = "home";
+  aux_marker.id = 1;
+  aux_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+  aux_marker.action = visualization_msgs::Marker::ADD;
+  aux_marker.text = "H";
+  aux_marker.pose.position.x = home_x;
+  aux_marker.pose.position.y = home_y;
+  aux_marker.pose.position.z = home_z;
+  aux_marker.pose.orientation.w = 1.0;
+  aux_marker.scale.z = 0.5;
+  aux_marker.color.r = 255.0 / 255.0;
+  aux_marker.color.g = 255.0 / 255.0;
+  aux_marker.color.b = 255.0 / 255.0;
+  aux_marker.color.a = 1.0;
+
+  home_pub_vis.publish(aux_marker); 
 }
 
 }  // namespace srv_mav_behaviours
