@@ -151,14 +151,14 @@ add_dependencies(mission_manager_node
                       
 # --------------Path demo----------------
 # Library
-add_library(path_demo
+add_library(path_demo_lib
             src/path_demo.cc)
-target_link_libraries(path_demo
+target_link_libraries(path_demo_lib
                       ${catkin_LIBRARIES}
                       ${OpenCV_LIBRARIES}
                       ${Boost_LIBRARIES}
                       )
-add_dependencies(path_demo
+add_dependencies(path_demo_lib
                       ${catkin_EXPORTED_TARGETS}
                       ${OpenCV_EXPORTED_TARGETS}
                       ${Boost_EXPORTED_TARGETS}
@@ -168,7 +168,10 @@ add_dependencies(path_demo
 add_executable(path_demo
                src/path_demo.cc)
 target_link_libraries(path_demo
+               path_demo_lib
                ${catkin_LIBRARIES}
                ${OpenCV_LIBRARIES}
                ${Boost_LIBRARIES}
                )
+add_dependencies(path_demo
+               ${PROJECT_NAME}_gencfg)
