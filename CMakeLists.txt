@@ -150,6 +150,21 @@ add_dependencies(mission_manager_node
                       ${PROJECT_NAME}_gencfg) 
                       
 # --------------Path demo----------------
+# Library
+add_library(path_demo
+            src/path_demo.cc)
+target_link_libraries(mission_manager
+                      ${catkin_LIBRARIES}
+                      ${OpenCV_LIBRARIES}
+                      ${Boost_LIBRARIES}
+                      )
+add_dependencies(path_demo
+                      ${catkin_EXPORTED_TARGETS}
+                      ${OpenCV_EXPORTED_TARGETS}
+                      ${Boost_EXPORTED_TARGETS}
+                      srv_mav_behaviours_generate_messages_cpp)
+
+# Node
 add_executable(path_demo
                src/path_demo.cc)
 target_link_libraries(path_demo
@@ -157,4 +172,3 @@ target_link_libraries(path_demo
                ${OpenCV_LIBRARIES}
                ${Boost_LIBRARIES}
                )
-
