@@ -153,7 +153,7 @@ add_dependencies(mission_manager_node
 # Library
 add_library(path_demo
             src/path_demo.cc)
-target_link_libraries(mission_manager
+target_link_libraries(path_demo
                       ${catkin_LIBRARIES}
                       ${OpenCV_LIBRARIES}
                       ${Boost_LIBRARIES}
